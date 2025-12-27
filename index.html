@@ -69,6 +69,9 @@
                     </div>
                 </div>
             </div>
+            <div id="status-display" class="mt-4 p-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold text-center">
+                Connecting to Firebase...
+            </div>
         </div>
     </div>
 
@@ -86,7 +89,7 @@
                     <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Room Code</span>
                     <span id="display-room-id" class="text-xs font-mono font-bold tracking-widest text-blue-400">---</span>
                 </div>
-                <button id="copy-code-btn" class="hover:text-blue-400 p-2">📋</button>
+                <button id="copy-code-btn" class="hover:text-blue-400 p-2 transition-transform active:scale-125">📋</button>
             </div>
         </div>
 
@@ -155,24 +158,29 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        // FALLBACK CONFIG FOR GITHUB PAGES
-        const defaultFirebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT.appspot.com",
-            messagingSenderId: "YOUR_SENDER_ID",
-            appId: "YOUR_APP_ID"
+        const firebaseConfig = {
+            apiKey: "AIzaSyBIMQt_N3Z4nLabjV9Erj7SzlvHmhaqo4Q",
+            authDomain: "chat-78682.firebaseapp.com",
+            projectId: "chat-78682",
+            storageBucket: "chat-78682.firebasestorage.app",
+            messagingSenderId: "650441779462",
+            appId: "1:650441779462:web:8ad0bc03119881ec49d687",
+            measurementId: "G-R4VY4PVDV4"
         };
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : defaultFirebaseConfig;
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : "skribbl-public-v1";
+
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            document.getElementById('status-display').innerText = "Firebase Ready";
+        } catch (e) {
+            console.error("Firebase init failed", e);
+            document.getElementById('status-display').innerText = "Init Failed: Check Console";
+            document.getElementById('status-display').classList.add('bg-red-100', 'text-red-700');
+        }
 
         // GAME CONSTANTS
         const WORDS = ['Pizza', 'Elephant', 'Laptop', 'Rocket', 'Cactus', 'Volcano', 'Guitar', 'Bicycle', 'Snowman', 'Pyramid', 'Donut', 'Pencil', 'Castle', 'Dragon', 'Camera', 'Balloon', 'Lighthouse', 'Burger', 'Submarine', 'Sunflower'];
@@ -232,19 +240,34 @@
         }
 
         async function initAuth() {
+            if (!auth) return;
             onAuthStateChanged(auth, u => {
                 user = u;
-                document.getElementById('quick-play').disabled = false;
+                if (user) {
+                    document.getElementById('quick-play').disabled = false;
+                    document.getElementById('status-display').innerText = "Authenticated: " + user.uid.substring(0, 8);
+                }
             });
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth).catch(e => console.warn("Anon auth failed, check Firebase settings", e));
+            
+            // PRIORITY: Attempt custom token, if it fails with mismatch, fall back to anonymous
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                console.warn("Auth Error, falling back to anonymous", e);
+                // Specifically handle the mismatch error or any failure during the preferred auth method
+                await signInAnonymously(auth).catch(err => {
+                    console.error("Final auth failure", err);
+                    document.getElementById('status-display').innerText = "Auth Error: Check Firebase Console";
+                });
             }
         }
 
         async function joinRoom(roomId, isPrivate) {
-            if (!user) return;
+            if (!user || !db) return;
             const name = document.getElementById('player-name').value.trim() || 'Player' + Math.floor(Math.random()*1000);
             currentRoomId = roomId.toUpperCase();
             
@@ -296,18 +319,18 @@
                 roomData = snapshot.data();
                 updateUI();
                 if (!isDrawing) redrawCanvas(roomData.lines);
+            }, (error) => {
+                console.error("Firestore Error:", error);
             });
         }
 
         function startHeartbeat() {
-            // Very simple timer logic: the drawer is responsible for updating the timer in Firestore
             setInterval(async () => {
                 if (!roomData || roomData.currentDrawer !== user.uid) return;
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
                 let newTimer = (roomData.timer || 80) - 1;
                 
                 if (newTimer <= 0) {
-                    // Turn over
                     const players = roomData.players;
                     const drawerIdx = players.findIndex(p => p.id === user.uid);
                     const nextIdx = (drawerIdx + 1) % players.length;
@@ -325,9 +348,9 @@
         }
 
         function updateUI() {
+            if (!roomData) return;
             const isDrawer = roomData.currentDrawer === user.uid;
             
-            // Player List
             const list = document.getElementById('player-list');
             list.innerHTML = '';
             [...roomData.players].sort((a,b) => b.score - a.score).forEach(p => {
@@ -407,8 +430,8 @@
 
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+            const clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
             return { x: (clientX - rect.left) / canvas.width, y: (clientY - rect.top) / canvas.height };
         }
 
@@ -431,9 +454,24 @@
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: localLines });
         });
 
-        // Touch support
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); /* trigger mousedown logic */ });
-        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); /* trigger mousemove logic */ });
+        canvas.addEventListener('touchstart', (e) => {
+            if (!roomData || roomData.currentDrawer !== user.uid) return;
+            e.preventDefault();
+            isDrawing = true;
+            localLines = [...roomData.lines, { color: isErasing ? '#ffffff' : currentColor, size: brushSize, points: [getPos(e)] }];
+            redrawCanvas(localLines);
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            if (!isDrawing) return;
+            e.preventDefault();
+            localLines[localLines.length - 1].points.push(getPos(e));
+            redrawCanvas(localLines);
+        });
+        canvas.addEventListener('touchend', async () => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: localLines });
+        });
 
         document.getElementById('chat-form').onsubmit = async (e) => {
             e.preventDefault();
@@ -463,6 +501,7 @@
         };
 
         document.getElementById('quick-play').onclick = async () => {
+            if (!db) return;
             const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'rooms'));
             let target = null;
             snap.forEach(d => { if (!d.data().isPrivate && d.data().players.length < 8) target = d.id; });
@@ -485,9 +524,19 @@
         };
 
         document.getElementById('clear-btn').onclick = async () => {
-            if (roomData.currentDrawer === user.uid) {
+            if (roomData && roomData.currentDrawer === user.uid) {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: [] });
             }
+        };
+
+        document.getElementById('copy-code-btn').onclick = () => {
+            const code = document.getElementById('display-room-id').innerText;
+            const el = document.createElement('textarea');
+            el.value = code;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
         };
 
         document.getElementById('exit-game').onclick = () => location.reload();

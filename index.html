@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skribbl Clone - Multiplayer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Nunito', sans-serif; }
+        .canvas-container { cursor: crosshair; }
+        input[type="range"] { accent-color: #2563eb; }
+        /* Hide scrollbar but keep functionality */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-100 overflow-hidden">
+
+    <!-- LOBBY VIEW -->
+    <div id="lobby-view" class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-2xl overflow-hidden">
+            <div class="text-center mb-8">
+                <h1 class="text-6xl font-black text-blue-600 italic tracking-tighter drop-shadow-sm">skribbl.io</h1>
+                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">v2.2 HTML Edition</p>
+            </div>
+            
+            <div class="flex flex-col md:flex-row gap-8">
+                <div class="flex-1 flex flex-col items-center border-b md:border-b-0 md:border-r border-slate-100 pb-8 md:pb-0 md:pr-8">
+                    <div id="avatar-preview" class="w-40 h-40 rounded-[2.5rem] flex items-center justify-center text-7xl shadow-xl mb-6 bg-red-500 transition-transform hover:scale-105 cursor-default">
+                        🐱
+                    </div>
+                    
+                    <input id="player-name" type="text" placeholder="Name..." maxlength="12" class="w-full px-5 py-4 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-center text-lg shadow-inner bg-slate-50">
+
+                    <div class="mt-6 w-full space-y-4">
+                        <div id="color-grid" class="grid grid-cols-4 gap-2"></div>
+                        <div id="icon-grid" class="grid grid-cols-6 gap-2"></div>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col justify-center space-y-4">
+                    <button id="quick-play" class="group w-full bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-2xl transition-all shadow-lg active:scale-95">
+                        <div class="flex items-center justify-between">
+                            <div class="text-left">
+                                <p class="text-2xl font-black italic">QUICK PLAY</p>
+                                <p class="text-blue-200 text-xs font-bold uppercase tracking-widest">Public Lobby</p>
+                            </div>
+                            <span class="text-3xl opacity-50 group-hover:opacity-100">🌍</span>
+                        </div>
+                    </button>
+
+                    <div class="relative py-2">
+                        <div class="absolute inset-0 flex items-center"><span class="w-full border-t-2 border-slate-100"></span></div>
+                        <div class="relative flex justify-center text-[10px] uppercase font-black text-slate-300 tracking-widest"><span class="bg-white px-3">Private Match</span></div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="flex gap-2">
+                            <input id="room-code-input" type="text" placeholder="CODE..." maxlength="6" class="flex-1 px-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-purple-500 outline-none font-mono font-bold uppercase tracking-widest text-center">
+                            <button id="create-private" class="bg-purple-600 hover:bg-purple-700 text-white px-6 rounded-2xl transition-all shadow-lg active:scale-90 flex items-center justify-center">
+                                <span class="text-2xl">+</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME VIEW -->
+    <div id="game-view" class="hidden h-screen flex flex-col md:flex-row overflow-hidden">
+        <!-- Sidebar: Players -->
+        <div class="w-full md:w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
+            <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <h2 class="font-black italic text-slate-700 flex items-center gap-2">👥 PLAYERS</h2>
+                <button id="exit-game" class="text-slate-400 hover:text-red-500 transition-colors text-xl">🚪</button>
+            </div>
+            <div id="player-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+            <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+                <div class="flex flex-col">
+                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Room ID</span>
+                    <span id="display-room-id" class="text-xs font-mono font-bold tracking-widest">---</span>
+                </div>
+                <button id="copy-code-btn" class="hover:text-blue-400">📋</button>
+            </div>
+        </div>
+
+        <!-- Main: Drawing Area -->
+        <div class="flex-1 flex flex-col relative">
+            <div class="bg-white border-b border-slate-200 flex flex-col z-10 shadow-sm">
+                <div class="h-16 flex items-center justify-between px-6">
+                    <div class="flex items-center gap-4">
+                        <div class="bg-blue-600 text-white p-2 rounded-lg rotate-3 text-xl">✏️</div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 uppercase font-black tracking-[0.2em] leading-none mb-1">Guess This Word</p>
+                            <p id="word-display" class="font-mono text-xl font-black tracking-[0.4em] text-slate-800">_ _ _ _</p>
+                        </div>
+                    </div>
+                    <div id="drawer-tools" class="hidden items-center gap-3">
+                        <button id="eraser-btn" class="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200">🧽</button>
+                        <button id="clear-btn" class="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100">🗑️</button>
+                    </div>
+                </div>
+
+                <div id="tool-bar" class="hidden h-20 bg-slate-50 border-t border-slate-100 items-center px-6 gap-6 overflow-x-auto no-scrollbar">
+                    <div class="flex flex-col shrink-0 gap-1 min-w-[120px]">
+                        <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
+                            <span>Size</span>
+                            <span id="brush-size-label">5px</span>
+                        </div>
+                        <input id="brush-size" type="range" min="2" max="40" value="5" class="w-full">
+                    </div>
+                    <div class="h-10 w-[2px] bg-slate-200 shrink-0"></div>
+                    <div id="palette" class="flex flex-wrap gap-1.5 py-2 min-w-0"></div>
+                </div>
+            </div>
+
+            <div class="flex-1 bg-white relative overflow-hidden canvas-container">
+                <canvas id="game-canvas" class="w-full h-full touch-none"></canvas>
+                <div id="drawer-overlay" class="hidden absolute inset-0 bg-slate-900/5 pointer-events-none flex items-center justify-center">
+                    <div class="bg-white/95 backdrop-blur-sm px-6 py-3 rounded-2xl border border-white/50 shadow-xl flex items-center gap-3 text-slate-700 font-bold italic">
+                        <span class="animate-bounce">🎨</span> <span id="drawer-name-notif">Player</span> is drawing...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar: Chat -->
+        <div class="w-full md:w-80 bg-slate-50 border-l border-slate-200 flex flex-col shrink-0 h-64 md:h-full">
+            <div class="p-4 border-b border-slate-200 bg-white">
+                <h2 class="font-black italic flex items-center gap-2 text-slate-700 text-xs tracking-widest">💬 FEED</h2>
+            </div>
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-4 flex flex-col space-y-3"></div>
+            <form id="chat-form" class="p-4 bg-white border-t border-slate-200 flex gap-2">
+                <input id="chat-input" type="text" placeholder="Type your guess..." class="flex-1 px-4 py-3 bg-slate-100 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold">
+                <button id="chat-submit" type="submit" class="p-3 bg-blue-600 text-white rounded-2xl shadow-lg active:scale-90">📤</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- FIREBASE SETUP -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global State
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'skribbl-html-v1';
+
+        let user = null;
+        let currentRoomId = null;
+        let isJoined = false;
+        let isDrawing = false;
+        let roomData = null;
+        let localLines = [];
+        
+        // Settings
+        const AVATAR_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4'];
+        const AVATAR_ICONS = ['🐱', '🐶', '🦊', '🐨', '🦁', '🐸', '🦄', '🐼', '🤖', '👾', '👻', '🤡'];
+        const COLORS = ['#000000', '#ffffff', '#4b4b4b', '#ee1b24', '#ff7e26', '#fef200', '#22b14c', '#00a2e8', '#3f48cc', '#a349a4', '#b97a57'];
+        const WORDS = ['Apple', 'Banana', 'Car', 'Dog', 'Elephant', 'Fire', 'Guitar', 'House', 'Ice Cream', 'Jungle', 'Kangaroo', 'Lamp', 'Mountain', 'Sun', 'Tree', 'Whale', 'Dragon', 'Pizza', 'Rocket', 'Snowman', 'Laptop', 'Burger', 'Bicycle', 'Castle'];
+
+        let selectedAvatarColor = AVATAR_COLORS[0];
+        let selectedAvatarIcon = AVATAR_ICONS[0];
+        let currentColor = '#000000';
+        let brushSize = 5;
+        let isErasing = false;
+
+        // Elements
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const lobbyView = document.getElementById('lobby-view');
+        const gameView = document.getElementById('game-view');
+        const chatMessages = document.getElementById('chat-messages');
+
+        // Init UI
+        function initLobbyUI() {
+            const colorGrid = document.getElementById('color-grid');
+            const iconGrid = document.getElementById('icon-grid');
+            const palette = document.getElementById('palette');
+
+            AVATAR_COLORS.forEach(c => {
+                const btn = document.createElement('button');
+                btn.className = "h-8 rounded-lg border-2 border-transparent transition-all";
+                btn.style.backgroundColor = c;
+                btn.onclick = () => {
+                    selectedAvatarColor = c;
+                    document.getElementById('avatar-preview').style.backgroundColor = c;
+                };
+                colorGrid.appendChild(btn);
+            });
+
+            AVATAR_ICONS.forEach(i => {
+                const btn = document.createElement('button');
+                btn.className = "text-2xl p-1 rounded-xl hover:bg-slate-50";
+                btn.innerText = i;
+                btn.onclick = () => {
+                    selectedAvatarIcon = i;
+                    document.getElementById('avatar-preview').innerText = i;
+                };
+                iconGrid.appendChild(btn);
+            });
+
+            COLORS.forEach(c => {
+                const btn = document.createElement('button');
+                btn.className = "w-7 h-7 rounded-full border-2 border-transparent";
+                btn.style.backgroundColor = c;
+                btn.onclick = () => {
+                    currentColor = c;
+                    isErasing = false;
+                };
+                palette.appendChild(btn);
+            });
+        }
+
+        // Auth
+        async function initAuth() {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+            onAuthStateChanged(auth, u => user = u);
+        }
+
+        // Room Management
+        async function joinRoom(roomId, isPrivate) {
+            const playerName = document.getElementById('player-name').value || 'Anonymous';
+            currentRoomId = roomId.toUpperCase();
+            
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+            const playerData = { id: user.uid, name: playerName, score: 0, avatarColor: selectedAvatarColor, avatarIcon: selectedAvatarIcon };
+
+            const snap = await getDoc(roomRef);
+            if (!snap.exists()) {
+                await setDoc(roomRef, {
+                    id: currentRoomId,
+                    isPrivate,
+                    players: [playerData],
+                    currentDrawer: user.uid,
+                    currentWord: WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase(),
+                    hintIndices: [], // Track revealed letters
+                    lines: [],
+                    messages: [],
+                    createdAt: Date.now()
+                });
+            } else {
+                const data = snap.data();
+                if (!data.players.find(p => p.id === user.uid)) {
+                    await updateDoc(roomRef, { players: arrayUnion(playerData) });
+                }
+            }
+
+            isJoined = true;
+            lobbyView.classList.add('hidden');
+            gameView.classList.remove('hidden');
+            document.getElementById('display-room-id').innerText = currentRoomId;
+            resizeCanvas();
+            listenToRoom();
+            
+            // Start hint logic if we are the drawer/host
+            setInterval(checkAndRevealHints, 15000);
+        }
+
+        async function checkAndRevealHints() {
+            if (!roomData || roomData.currentDrawer !== user.uid) return;
+            const word = roomData.currentWord;
+            const revealed = roomData.hintIndices || [];
+            
+            // Don't reveal more than 30% of the word or more than 2 letters
+            const maxHints = Math.max(1, Math.floor(word.length * 0.3));
+            if (revealed.length < maxHints) {
+                const remaining = [];
+                for(let i=0; i<word.length; i++) {
+                    if(!revealed.includes(i)) remaining.push(i);
+                }
+                const newHint = remaining[Math.floor(Math.random() * remaining.length)];
+                
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+                await updateDoc(roomRef, { hintIndices: arrayUnion(newHint) });
+            }
+        }
+
+        function listenToRoom() {
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+            onSnapshot(roomRef, (snapshot) => {
+                if (!snapshot.exists()) return;
+                roomData = snapshot.data();
+                updateUI();
+                redrawCanvas(roomData.lines);
+            });
+        }
+
+        function updateUI() {
+            if (!roomData) return;
+            const isDrawer = roomData.currentDrawer === user.uid;
+            
+            // Chat Input State
+            const chatInput = document.getElementById('chat-input');
+            const chatBtn = document.getElementById('chat-submit');
+            if (isDrawer) {
+                chatInput.disabled = true;
+                chatInput.placeholder = "You are drawing! No cheating...";
+                chatInput.value = "";
+                chatBtn.disabled = true;
+                chatBtn.classList.add('opacity-50');
+            } else {
+                chatInput.disabled = false;
+                chatInput.placeholder = "Type your guess...";
+                chatBtn.disabled = false;
+                chatBtn.classList.remove('opacity-50');
+            }
+
+            // Player List
+            const list = document.getElementById('player-list');
+            list.innerHTML = '';
+            [...roomData.players].sort((a,b) => b.score - a.score).forEach(p => {
+                const item = document.createElement('div');
+                item.className = `flex items-center justify-between p-2.5 rounded-xl ${p.id === user.uid ? 'bg-blue-50' : ''}`;
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xl" style="background:${p.avatarColor}">${p.avatarIcon}</div>
+                        <div>
+                            <p class="text-sm font-bold">${p.name}</p>
+                            <p class="text-[10px] text-blue-600 font-black">${p.score} PTS</p>
+                        </div>
+                    </div>
+                    ${roomData.currentDrawer === p.id ? '✏️' : ''}
+                `;
+                list.appendChild(item);
+            });
+
+            // Tools Visibility
+            document.getElementById('drawer-tools').style.display = isDrawer ? 'flex' : 'none';
+            document.getElementById('tool-bar').style.display = isDrawer ? 'flex' : 'none';
+            document.getElementById('drawer-overlay').style.display = isDrawer ? 'none' : 'flex';
+            
+            const drawerObj = roomData.players.find(p => p.id === roomData.currentDrawer);
+            document.getElementById('drawer-name-notif').innerText = drawerObj?.name || 'Someone';
+
+            // Word Display with Hints
+            const word = roomData.currentWord || "";
+            const hints = roomData.hintIndices || [];
+            let display = "";
+            
+            if (isDrawer) {
+                display = word.toUpperCase().split('').join(' ');
+            } else {
+                display = word.split('').map((char, idx) => {
+                    return hints.includes(idx) ? char.toUpperCase() : '_';
+                }).join(' ');
+            }
+            document.getElementById('word-display').innerText = display;
+
+            // Chat Messages
+            chatMessages.innerHTML = '';
+            roomData.messages.slice(-30).forEach(m => {
+                const div = document.createElement('div');
+                div.className = `text-sm flex gap-3 animate-in fade-in slide-in-from-bottom-1 ${m.system ? 'bg-green-100 p-2 rounded-lg' : ''}`;
+                div.innerHTML = `
+                    <span class="shrink-0">${m.avatarIcon || '👤'}</span>
+                    <div class="min-w-0 flex-1">
+                        <p class="font-bold text-[9px] text-slate-400 uppercase leading-none mb-1">${m.sender}</p>
+                        <p class="text-slate-700 break-words">${m.text}</p>
+                    </div>
+                `;
+                chatMessages.appendChild(div);
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Drawing Logic
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            if (roomData) redrawCanvas(roomData.lines);
+        }
+
+        function redrawCanvas(lines) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            lines.forEach(line => {
+                if (!line.points.length) return;
+                ctx.beginPath();
+                ctx.strokeStyle = line.color;
+                ctx.lineWidth = line.size;
+                line.points.forEach((p, i) => {
+                    const x = p.x * canvas.width;
+                    const y = p.y * canvas.height;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            });
+        }
+
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: (clientX - rect.left) / canvas.width, y: (clientY - rect.top) / canvas.height };
+        }
+
+        function startDrawing(e) {
+            if (!roomData || roomData.currentDrawer !== user.uid) return;
+            isDrawing = true;
+            localLines = [...roomData.lines, {
+                color: isErasing ? '#ffffff' : currentColor,
+                size: brushSize,
+                points: [getPos(e)]
+            }];
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const pos = getPos(e);
+            localLines[localLines.length - 1].points.push(pos);
+            redrawCanvas(localLines);
+        }
+
+        async function stopDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+            await updateDoc(roomRef, { lines: localLines });
+        }
+
+        // Events
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        window.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
+        canvas.addEventListener('touchend', stopDrawing);
+
+        document.getElementById('brush-size').oninput = (e) => {
+            brushSize = parseInt(e.target.value);
+            document.getElementById('brush-size-label').innerText = brushSize + 'px';
+        };
+
+        document.getElementById('eraser-btn').onclick = () => isErasing = !isErasing;
+        document.getElementById('clear-btn').onclick = async () => {
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+            await updateDoc(roomRef, { lines: [] });
+        };
+
+        document.getElementById('chat-form').onsubmit = async (e) => {
+            e.preventDefault();
+            if (roomData?.currentDrawer === user.uid) return; // Guard
+            
+            const input = document.getElementById('chat-input');
+            const val = input.value.trim();
+            if (!val || !roomData) return;
+
+            const isCorrect = val.toLowerCase() === roomData.currentWord.toLowerCase();
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+            
+            const msg = {
+                sender: document.getElementById('player-name').value || 'Anonymous',
+                text: isCorrect ? 'guessed the word!' : val,
+                system: isCorrect,
+                avatarIcon: selectedAvatarIcon,
+                timestamp: Date.now()
+            };
+
+            let updates = { messages: arrayUnion(msg) };
+
+            if (isCorrect) {
+                const nextIdx = (roomData.players.findIndex(p => p.id === roomData.currentDrawer) + 1) % roomData.players.length;
+                updates.players = roomData.players.map(p => p.id === user.uid ? {...p, score: p.score + 10} : p);
+                updates.currentDrawer = roomData.players[nextIdx].id;
+                updates.currentWord = WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase();
+                updates.lines = [];
+                updates.hintIndices = []; // Reset hints for next word
+            }
+
+            await updateDoc(roomRef, updates);
+            input.value = '';
+        };
+
+        document.getElementById('quick-play').onclick = async () => {
+            const col = collection(db, 'artifacts', appId, 'public', 'data', 'game_rooms');
+            const snap = await getDocs(query(col));
+            let target = null;
+            snap.forEach(d => { if(!d.data().isPrivate && d.data().players.length < 8) target = d.id; });
+            joinRoom(target || 'PUB-' + Math.random().toString(36).substring(2,7).toUpperCase(), false);
+        };
+
+        document.getElementById('create-private').onclick = () => {
+            const code = document.getElementById('room-code-input').value || Math.random().toString(36).substring(2,8).toUpperCase();
+            joinRoom(code, true);
+        };
+
+        document.getElementById('copy-code-btn').onclick = () => {
+            navigator.clipboard.writeText(currentRoomId);
+            document.getElementById('copy-code-btn').innerText = '✅';
+            setTimeout(() => document.getElementById('copy-code-btn').innerText = '📋', 2000);
+        };
+
+        document.getElementById('exit-game').onclick = () => location.reload();
+
+        // Start
+        initLobbyUI();
+        initAuth();
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>

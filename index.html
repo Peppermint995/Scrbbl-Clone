@@ -141,7 +141,6 @@
                     }
                 });
 
-                // Set initial UI state while waiting for auth
                 document.getElementById('quick-play').disabled = true;
                 document.getElementById('join-private').disabled = true;
 
@@ -156,7 +155,6 @@
         }
 
         async function joinRoom(id) {
-            // Explicitly wait for user if not yet ready
             if (!user) {
                 document.getElementById('status-display').innerText = "Still connecting to server...";
                 return;
@@ -167,6 +165,8 @@
 
             document.getElementById('status-display').innerText = `Joining ${rid}...`;
             const name = document.getElementById('player-name').value.trim() || 'Player' + Math.floor(Math.random()*99);
+            
+            // CORRECT PATH FOR PUBLIC DATA: /artifacts/{appId}/public/data/{collectionName}/{docId}
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', rid);
 
             try {
@@ -201,12 +201,14 @@
                 heartbeat();
             } catch (err) {
                 console.error("Join Error Details:", err);
-                document.getElementById('status-display').innerText = `Join failed: ${err.message || 'Check connection'}`;
+                document.getElementById('status-display').innerText = `Join failed: ${err.code === 'permission-denied' ? 'Permission Error (Check path logic)' : (err.message || 'Check connection')}`;
             }
         }
 
         function listen() {
-            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), (s) => {
+            if (!currentRoomId || !user) return;
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            onSnapshot(roomRef, (s) => {
                 if (!s.exists()) return;
                 roomData = s.data();
                 renderUI();
@@ -218,7 +220,7 @@
 
         function heartbeat() {
             setInterval(async () => {
-                if (!roomData || roomData.currentDrawer !== user.uid) return;
+                if (!roomData || roomData.currentDrawer !== user.uid || !currentRoomId) return;
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
                 let t = (roomData.timer || 80) - 1;
                 if (t <= 0) {
@@ -253,7 +255,7 @@
 
             document.getElementById('timer-box').innerText = roomData.timer;
             const isDrawer = roomData.currentDrawer === user.uid;
-            document.getElementById('word-display').innerText = isDrawer ? roomData.currentWord : (roomData.currentWord || "").replace(/[A-Z]/g, '_ ');
+            document.getElementById('word-display').innerText = isDrawer ? (roomData.currentWord || "") : (roomData.currentWord || "").replace(/[A-Z]/g, '_ ');
             document.getElementById('drawer-tools').classList.toggle('hidden', !isDrawer);
             document.getElementById('chat-input').disabled = isDrawer;
             document.getElementById('chat-input').placeholder = isDrawer ? "You are drawing!" : "Guess...";
@@ -313,7 +315,6 @@
             }
         };
 
-        // Touch
         canvas.ontouchstart = (e) => { e.preventDefault(); canvas.onmousedown(e); };
         canvas.ontouchmove = (e) => { e.preventDefault(); window.onmousemove(e); };
         canvas.ontouchend = (e) => { window.onmouseup(); };
@@ -321,8 +322,8 @@
         document.getElementById('chat-form').onsubmit = async (e) => {
             e.preventDefault();
             const val = document.getElementById('chat-input').value.trim().toUpperCase();
-            if (!val || !roomData) return;
-            const isCorrect = val === roomData.currentWord;
+            if (!val || !roomData || !currentRoomId) return;
+            const isCorrect = val === (roomData.currentWord || "").toUpperCase();
             const me = roomData.players.find(p => p.id === user.uid);
             const name = me ? me.name : 'Unknown';
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
@@ -354,7 +355,10 @@
             joinRoom(`LOBBY${lobbyNum}`);
         };
         document.getElementById('join-private').onclick = () => joinRoom(document.getElementById('room-code-input').value || 'ROOM1');
-        document.getElementById('clear-btn').onclick = () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: [] });
+        document.getElementById('clear-btn').onclick = () => {
+            if (!currentRoomId) return;
+            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: [] });
+        };
 
         function resize() {
             const parent = document.getElementById('canvas-parent');

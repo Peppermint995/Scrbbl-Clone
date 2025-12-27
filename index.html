@@ -134,8 +134,16 @@
 
                 onAuthStateChanged(auth, u => {
                     user = u;
-                    if (u) document.getElementById('status-display').innerText = "Connected! Choose a room.";
+                    if (u) {
+                        document.getElementById('status-display').innerText = "Connected! Choose a room.";
+                        document.getElementById('quick-play').disabled = false;
+                        document.getElementById('join-private').disabled = false;
+                    }
                 });
+
+                // Set initial UI state while waiting for auth
+                document.getElementById('quick-play').disabled = true;
+                document.getElementById('join-private').disabled = true;
 
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
@@ -148,7 +156,12 @@
         }
 
         async function joinRoom(id) {
-            if (!user) return;
+            // Explicitly wait for user if not yet ready
+            if (!user) {
+                document.getElementById('status-display').innerText = "Still connecting to server...";
+                return;
+            }
+            
             const rid = id.toUpperCase().trim();
             if (!rid) return;
 
@@ -187,8 +200,8 @@
                 listen();
                 heartbeat();
             } catch (err) {
-                console.error(err);
-                document.getElementById('status-display').innerText = "Join Error: Check connection.";
+                console.error("Join Error Details:", err);
+                document.getElementById('status-display').innerText = `Join failed: ${err.message || 'Check connection'}`;
             }
         }
 
@@ -198,6 +211,8 @@
                 roomData = s.data();
                 renderUI();
                 if (!isDrawing) drawLines(roomData.lines || []);
+            }, (err) => {
+                console.error("Snapshot error:", err);
             });
         }
 
@@ -223,6 +238,7 @@
         }
 
         function renderUI() {
+            if (!roomData || !roomData.players) return;
             const list = document.getElementById('player-list');
             list.innerHTML = roomData.players.map(p => `
                 <div class="flex items-center gap-2 p-2 ${p.id === user.uid ? 'bg-blue-50' : ''} rounded-lg">
@@ -237,7 +253,7 @@
 
             document.getElementById('timer-box').innerText = roomData.timer;
             const isDrawer = roomData.currentDrawer === user.uid;
-            document.getElementById('word-display').innerText = isDrawer ? roomData.currentWord : roomData.currentWord.replace(/[A-Z]/g, '_ ');
+            document.getElementById('word-display').innerText = isDrawer ? roomData.currentWord : (roomData.currentWord || "").replace(/[A-Z]/g, '_ ');
             document.getElementById('drawer-tools').classList.toggle('hidden', !isDrawer);
             document.getElementById('chat-input').disabled = isDrawer;
             document.getElementById('chat-input').placeholder = isDrawer ? "You are drawing!" : "Guess...";
@@ -270,8 +286,8 @@
 
         function getMouse(e) {
             const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+            const clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
             return { x: (clientX - rect.left) / canvas.width, y: (clientY - rect.top) / canvas.height };
         }
 
@@ -289,8 +305,12 @@
         window.onmouseup = async () => {
             if (!isDrawing) return;
             isDrawing = false;
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-            await updateDoc(roomRef, { lines: [...(roomData.lines || []), { size: document.getElementById('brush-size').value, points: lastPoints }] });
+            try {
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+                await updateDoc(roomRef, { lines: [...(roomData.lines || []), { size: document.getElementById('brush-size').value, points: lastPoints }] });
+            } catch (err) {
+                console.error("Line update failed:", err);
+            }
         };
 
         // Touch
@@ -301,31 +321,35 @@
         document.getElementById('chat-form').onsubmit = async (e) => {
             e.preventDefault();
             const val = document.getElementById('chat-input').value.trim().toUpperCase();
-            if (!val) return;
+            if (!val || !roomData) return;
             const isCorrect = val === roomData.currentWord;
-            const name = roomData.players.find(p => p.id === user.uid).name;
+            const me = roomData.players.find(p => p.id === user.uid);
+            const name = me ? me.name : 'Unknown';
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
 
-            if (isCorrect) {
-                const nextWord = WORDS[Math.floor(Math.random() * WORDS.length)];
-                const players = roomData.players.map(p => p.id === user.uid ? {...p, score: p.score + 10} : p);
-                const nextIdx = (players.findIndex(p => p.id === roomData.currentDrawer) + 1) % players.length;
-                await updateDoc(roomRef, {
-                    players,
-                    currentDrawer: players[nextIdx].id,
-                    currentWord: nextWord,
-                    lines: [],
-                    timer: 80,
-                    messages: arrayUnion({ sender: 'System', text: `${name} guessed it!`, system: true })
-                });
-            } else {
-                await updateDoc(roomRef, { messages: arrayUnion({ sender: name, text: val }) });
+            try {
+                if (isCorrect) {
+                    const nextWord = WORDS[Math.floor(Math.random() * WORDS.length)];
+                    const players = roomData.players.map(p => p.id === user.uid ? {...p, score: p.score + 10} : p);
+                    const nextIdx = (players.findIndex(p => p.id === roomData.currentDrawer) + 1) % players.length;
+                    await updateDoc(roomRef, {
+                        players,
+                        currentDrawer: players[nextIdx].id,
+                        currentWord: nextWord,
+                        lines: [],
+                        timer: 80,
+                        messages: arrayUnion({ sender: 'System', text: `${name} guessed it!`, system: true })
+                    });
+                } else {
+                    await updateDoc(roomRef, { messages: arrayUnion({ sender: name, text: val }) });
+                }
+            } catch (err) {
+                console.error("Chat failed:", err);
             }
             document.getElementById('chat-input').value = '';
         };
 
         document.getElementById('quick-play').onclick = () => {
-            // Join one of 3 public lobbies immediately
             const lobbyNum = Math.floor(Math.random() * 3) + 1;
             joinRoom(`LOBBY${lobbyNum}`);
         };
@@ -333,9 +357,11 @@
         document.getElementById('clear-btn').onclick = () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: [] });
 
         function resize() {
-            canvas.width = document.getElementById('canvas-parent').clientWidth;
-            canvas.height = document.getElementById('canvas-parent').clientHeight;
-            if (roomData) drawLines(roomData.lines);
+            const parent = document.getElementById('canvas-parent');
+            if (!parent) return;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            if (roomData) drawLines(roomData.lines || []);
         }
 
         window.onresize = resize;

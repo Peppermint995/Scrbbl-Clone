@@ -12,8 +12,6 @@
         input[type="range"] { accent-color: #2563eb; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .animate-in { animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         canvas { touch-action: none; background-color: white; border-radius: 1rem; }
     </style>
 </head>
@@ -47,7 +45,7 @@
                     <button id="quick-play" class="group w-full bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50" disabled>
                         <div class="flex items-center justify-between">
                             <div class="text-left">
-                                <p class="text-2xl font-black italic">QUICK JOIN</p>
+                                <p id="quick-play-text" class="text-2xl font-black italic">QUICK JOIN</p>
                                 <p class="text-blue-200 text-xs font-bold uppercase tracking-widest">Public Lobby</p>
                             </div>
                             <span class="text-3xl opacity-50 group-hover:opacity-100">🌍</span>
@@ -70,7 +68,7 @@
                 </div>
             </div>
             <div id="status-display" class="mt-4 p-3 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold text-center">
-                Connecting to Firebase...
+                Checking connection...
             </div>
         </div>
     </div>
@@ -109,7 +107,6 @@
                         <button id="clear-btn" class="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-all">🗑️</button>
                     </div>
                 </div>
-
                 <div id="tool-bar" class="hidden h-20 bg-slate-50 border-t border-slate-100 items-center px-6 gap-6 overflow-x-auto no-scrollbar">
                     <div class="flex flex-col shrink-0 gap-1 min-w-[120px]">
                         <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
@@ -126,7 +123,6 @@
             <div class="flex-1 bg-slate-200 p-4 relative overflow-hidden">
                 <div class="w-full h-full relative overflow-hidden canvas-container">
                     <canvas id="game-canvas" class="w-full h-full shadow-lg"></canvas>
-                    
                     <div id="drawer-overlay" class="hidden absolute inset-0 bg-slate-900/5 pointer-events-none flex flex-col items-center justify-center">
                         <div class="bg-white/95 backdrop-blur-md px-8 py-4 rounded-3xl border border-white shadow-2xl flex items-center gap-4 text-slate-800 font-bold italic animate-bounce">
                             <span class="text-3xl">🎨</span>
@@ -158,44 +154,26 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        const firebaseConfig = {
+        // Global environment variables
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyBIMQt_N3Z4nLabjV9Erj7SzlvHmhaqo4Q",
             authDomain: "chat-78682.firebaseapp.com",
             projectId: "chat-78682",
             storageBucket: "chat-78682.firebasestorage.app",
             messagingSenderId: "650441779462",
-            appId: "1:650441779462:web:8ad0bc03119881ec49d687",
-            measurementId: "G-R4VY4PVDV4"
+            appId: "1:650441779462:web:8ad0bc03119881ec49d687"
         };
-
         const appId = typeof __app_id !== 'undefined' ? __app_id : "skribbl-public-v1";
 
-        let app, auth, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            document.getElementById('status-display').innerText = "Firebase Ready";
-        } catch (e) {
-            console.error("Firebase init failed", e);
-            document.getElementById('status-display').innerText = "Init Failed: Check Console";
-            document.getElementById('status-display').classList.add('bg-red-100', 'text-red-700');
-        }
-
-        // GAME CONSTANTS
-        const WORDS = ['Pizza', 'Elephant', 'Laptop', 'Rocket', 'Cactus', 'Volcano', 'Guitar', 'Bicycle', 'Snowman', 'Pyramid', 'Donut', 'Pencil', 'Castle', 'Dragon', 'Camera', 'Balloon', 'Lighthouse', 'Burger', 'Submarine', 'Sunflower'];
-        const AVATAR_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4'];
-        const AVATAR_ICONS = ['🐱', '🐶', '🦊', '🐨', '🦁', '🐸', '🦄', '🐼', '🤖', '👾', '👻', '🤡'];
-        const PALETTE = ['#000000', '#ffffff', '#7f7f7f', '#ee1b24', '#ff7e26', '#fef200', '#22b14c', '#00a2e8', '#3f48cc', '#a349a4', '#b97a57', '#ffaec9'];
+        let app, auth, db, user = null;
 
         // STATE
-        let user = null;
         let currentRoomId = null;
         let isDrawing = false;
         let roomData = null;
         let localLines = [];
-        let selectedAvatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-        let selectedAvatarIcon = AVATAR_ICONS[Math.floor(Math.random() * AVATAR_ICONS.length)];
+        let selectedAvatarColor = '#ef4444';
+        let selectedAvatarIcon = '🐱';
         let currentColor = '#000000';
         let brushSize = 5;
         let isErasing = false;
@@ -206,70 +184,50 @@
         const gameView = document.getElementById('game-view');
         const chatMessages = document.getElementById('chat-messages');
 
-        function initLobbyUI() {
-            const colorGrid = document.getElementById('color-grid');
-            const iconGrid = document.getElementById('icon-grid');
-            const paletteEl = document.getElementById('palette');
-
-            AVATAR_COLORS.forEach(c => {
-                const btn = document.createElement('button');
-                btn.className = "h-8 rounded-lg border-2 border-transparent hover:scale-110 transition-all";
-                btn.style.backgroundColor = c;
-                btn.onclick = () => { selectedAvatarColor = c; document.getElementById('avatar-preview').style.backgroundColor = c; };
-                colorGrid.appendChild(btn);
-            });
-
-            AVATAR_ICONS.forEach(i => {
-                const btn = document.createElement('button');
-                btn.className = "text-2xl p-1 rounded-xl hover:bg-slate-100 hover:scale-110 transition-all select-none";
-                btn.innerText = i;
-                btn.onclick = () => { selectedAvatarIcon = i; document.getElementById('avatar-preview').innerText = i; };
-                iconGrid.appendChild(btn);
-            });
-
-            PALETTE.forEach(c => {
-                const btn = document.createElement('button');
-                btn.className = "w-7 h-7 rounded-full border-2 border-white shadow-sm hover:scale-125 transition-all";
-                btn.style.backgroundColor = c;
-                btn.onclick = () => { currentColor = c; isErasing = false; document.getElementById('eraser-btn').style.borderColor = 'transparent'; };
-                paletteEl.appendChild(btn);
-            });
-
-            document.getElementById('avatar-preview').style.backgroundColor = selectedAvatarColor;
-            document.getElementById('avatar-preview').innerText = selectedAvatarIcon;
-        }
+        // CONSTANTS
+        const WORDS = ['Pizza', 'Elephant', 'Laptop', 'Rocket', 'Cactus', 'Volcano', 'Guitar', 'Bicycle', 'Snowman', 'Pyramid', 'Donut', 'Pencil', 'Castle', 'Dragon', 'Camera', 'Balloon', 'Lighthouse', 'Burger', 'Submarine', 'Sunflower'];
+        const AVATAR_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4'];
+        const AVATAR_ICONS = ['🐱', '🐶', '🦊', '🐨', '🦁', '🐸', '🦄', '🐼', '🤖', '👾', '👻', '🤡'];
+        const PALETTE = ['#000000', '#ffffff', '#7f7f7f', '#ee1b24', '#ff7e26', '#fef200', '#22b14c', '#00a2e8', '#3f48cc', '#a349a4', '#b97a57', '#ffaec9'];
 
         async function initAuth() {
-            if (!auth) return;
-            onAuthStateChanged(auth, u => {
-                user = u;
-                if (user) {
-                    document.getElementById('quick-play').disabled = false;
-                    document.getElementById('status-display').innerText = "Authenticated: " + user.uid.substring(0, 8);
-                }
-            });
-            
-            // PRIORITY: Attempt custom token, if it fails with mismatch, fall back to anonymous
             try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                onAuthStateChanged(auth, u => {
+                    user = u;
+                    if (user) {
+                        document.getElementById('quick-play').disabled = false;
+                        document.getElementById('status-display').innerText = "Ready to play!";
+                    }
+                });
+
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                    try {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } catch (e) {
+                        await signInAnonymously(auth);
+                    }
                 } else {
                     await signInAnonymously(auth);
                 }
             } catch (e) {
-                console.warn("Auth Error, falling back to anonymous", e);
-                // Specifically handle the mismatch error or any failure during the preferred auth method
-                await signInAnonymously(auth).catch(err => {
-                    console.error("Final auth failure", err);
-                    document.getElementById('status-display').innerText = "Auth Error: Check Firebase Console";
-                });
+                console.error("Firebase init failed", e);
+                document.getElementById('status-display').innerText = "Connection Error. Refresh.";
             }
         }
 
         async function joinRoom(roomId, isPrivate) {
             if (!user || !db) return;
+            
+            // Set UI to loading state
+            document.getElementById('quick-play-text').innerText = "JOINING...";
+            document.getElementById('quick-play').disabled = true;
+
             const name = document.getElementById('player-name').value.trim() || 'Player' + Math.floor(Math.random()*1000);
-            currentRoomId = roomId.toUpperCase();
+            currentRoomId = roomId.toUpperCase().replace(/[^A-Z0-9]/g, '');
             
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
             const playerInfo = { 
@@ -281,35 +239,38 @@
                 lastSeen: Date.now()
             };
 
-            const snap = await getDoc(roomRef);
-            if (!snap.exists()) {
-                await setDoc(roomRef, {
-                    id: currentRoomId,
-                    isPrivate,
-                    players: [playerInfo],
-                    currentDrawer: user.uid,
-                    currentWord: WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase(),
-                    lines: [],
-                    messages: [],
-                    timer: 80,
-                    lastTick: Date.now()
-                });
-            } else {
-                const data = snap.data();
-                if (!data.players.find(p => p.id === user.uid)) {
+            try {
+                const snap = await getDoc(roomRef);
+                if (!snap.exists()) {
+                    await setDoc(roomRef, {
+                        id: currentRoomId,
+                        isPrivate,
+                        players: [playerInfo],
+                        currentDrawer: user.uid,
+                        currentWord: WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase(),
+                        lines: [],
+                        messages: [{sender: 'System', text: `Welcome to Room ${currentRoomId}!`, system: true}],
+                        timer: 80
+                    });
+                } else {
                     await updateDoc(roomRef, { players: arrayUnion(playerInfo) });
                 }
-            }
 
-            lobbyView.classList.add('hidden');
-            gameView.classList.remove('hidden');
-            document.getElementById('display-room-id').innerText = currentRoomId;
-            
-            setTimeout(() => {
-                resizeCanvas();
-                listenToRoom();
-                startHeartbeat();
-            }, 200);
+                lobbyView.classList.add('hidden');
+                gameView.classList.remove('hidden');
+                document.getElementById('display-room-id').innerText = currentRoomId;
+                
+                setTimeout(() => {
+                    resizeCanvas();
+                    listenToRoom();
+                    startHeartbeat();
+                }, 300);
+            } catch (err) {
+                console.error("Join failed", err);
+                document.getElementById('quick-play-text').innerText = "QUICK JOIN";
+                document.getElementById('quick-play').disabled = false;
+                document.getElementById('status-display').innerText = "Failed to join room. Try again.";
+            }
         }
 
         function listenToRoom() {
@@ -318,10 +279,8 @@
                 if (!snapshot.exists()) return;
                 roomData = snapshot.data();
                 updateUI();
-                if (!isDrawing) redrawCanvas(roomData.lines);
-            }, (error) => {
-                console.error("Firestore Error:", error);
-            });
+                if (!isDrawing) redrawCanvas(roomData.lines || []);
+            }, (error) => console.error("Room sync error:", error));
         }
 
         function startHeartbeat() {
@@ -353,7 +312,8 @@
             
             const list = document.getElementById('player-list');
             list.innerHTML = '';
-            [...roomData.players].sort((a,b) => b.score - a.score).forEach(p => {
+            const sortedPlayers = [...(roomData.players || [])].sort((a,b) => b.score - a.score);
+            sortedPlayers.forEach(p => {
                 const div = document.createElement('div');
                 div.className = `flex items-center justify-between p-3 rounded-2xl ${p.id === user.uid ? 'bg-blue-50 border border-blue-200' : 'bg-slate-50'}`;
                 div.innerHTML = `
@@ -378,13 +338,13 @@
             const chatInput = document.getElementById('chat-input');
             if (isDrawer) {
                 chatInput.disabled = true;
-                chatInput.placeholder = "Drawing...";
+                chatInput.placeholder = "You are drawing...";
                 document.getElementById('drawer-tools').classList.remove('hidden');
                 document.getElementById('tool-bar').classList.remove('hidden');
                 document.getElementById('drawer-overlay').classList.add('hidden');
             } else {
                 chatInput.disabled = false;
-                chatInput.placeholder = "Guess...";
+                chatInput.placeholder = "Guess the word...";
                 document.getElementById('drawer-tools').classList.add('hidden');
                 document.getElementById('tool-bar').classList.add('hidden');
                 document.getElementById('drawer-overlay').classList.remove('hidden');
@@ -393,7 +353,7 @@
             }
 
             chatMessages.innerHTML = '';
-            roomData.messages.slice(-40).forEach(m => {
+            (roomData.messages || []).slice(-40).forEach(m => {
                 const div = document.createElement('div');
                 div.className = `p-2 rounded-xl text-sm ${m.system ? 'bg-green-100 text-green-800 font-bold' : 'bg-white shadow-sm border border-slate-100'}`;
                 div.innerHTML = `<strong>${m.sender}:</strong> ${m.text}`;
@@ -406,7 +366,7 @@
             const container = canvas.parentElement;
             canvas.width = container.clientWidth;
             canvas.height = container.clientHeight;
-            if (roomData) redrawCanvas(roomData.lines);
+            if (roomData) redrawCanvas(roomData.lines || []);
         }
 
         function redrawCanvas(lines) {
@@ -414,7 +374,7 @@
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             lines.forEach(line => {
-                if (!line.points.length) return;
+                if (!line.points || !line.points.length) return;
                 ctx.beginPath();
                 ctx.strokeStyle = line.color;
                 ctx.lineWidth = line.size;
@@ -438,7 +398,7 @@
         canvas.addEventListener('mousedown', (e) => {
             if (!roomData || roomData.currentDrawer !== user.uid) return;
             isDrawing = true;
-            localLines = [...roomData.lines, { color: isErasing ? '#ffffff' : currentColor, size: brushSize, points: [getPos(e)] }];
+            localLines = [...(roomData.lines || []), { color: isErasing ? '#ffffff' : currentColor, size: brushSize, points: [getPos(e)] }];
             redrawCanvas(localLines);
         });
 
@@ -454,11 +414,12 @@
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: localLines });
         });
 
+        // Touch support
         canvas.addEventListener('touchstart', (e) => {
             if (!roomData || roomData.currentDrawer !== user.uid) return;
             e.preventDefault();
             isDrawing = true;
-            localLines = [...roomData.lines, { color: isErasing ? '#ffffff' : currentColor, size: brushSize, points: [getPos(e)] }];
+            localLines = [...(roomData.lines || []), { color: isErasing ? '#ffffff' : currentColor, size: brushSize, points: [getPos(e)] }];
             redrawCanvas(localLines);
         });
         canvas.addEventListener('touchmove', (e) => {
@@ -477,12 +438,13 @@
             e.preventDefault();
             const input = document.getElementById('chat-input');
             const val = input.value.trim();
-            if (!val || roomData.currentDrawer === user.uid) return;
+            if (!val || !roomData || roomData.currentDrawer === user.uid) return;
 
             const isCorrect = val.toLowerCase() === roomData.currentWord.toLowerCase();
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            const playerName = document.getElementById('player-name').value || 'Guest';
             
-            const msg = { sender: document.getElementById('player-name').value || 'Guest', text: isCorrect ? 'Guessed the word! ✨' : val, system: isCorrect };
+            const msg = { sender: playerName, text: isCorrect ? '✨ GUESSED THE WORD! ✨' : val, system: isCorrect };
             let updates = { messages: arrayUnion(msg) };
 
             if (isCorrect) {
@@ -501,17 +463,55 @@
         };
 
         document.getElementById('quick-play').onclick = async () => {
-            if (!db) return;
-            const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'rooms'));
-            let target = null;
-            snap.forEach(d => { if (!d.data().isPrivate && d.data().players.length < 8) target = d.id; });
-            joinRoom(target || 'ROOM' + Math.floor(Math.random()*1000), false);
+            if (!user) return;
+            let targetRoom = 'PLAY' + Math.floor(1000 + Math.random() * 9000);
+            try {
+                const roomsCol = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
+                const snap = await getDocs(roomsCol);
+                snap.forEach(d => { 
+                    const data = d.data();
+                    if (!data.isPrivate && (data.players || []).length < 8) targetRoom = d.id; 
+                });
+            } catch (e) { console.warn("Quick join scan failed, creating new."); }
+            joinRoom(targetRoom, false);
         };
 
         document.getElementById('create-private').onclick = () => {
+            if (!user) return;
             const custom = document.getElementById('room-code-input').value.trim();
-            joinRoom(custom || Math.random().toString(36).substring(7).toUpperCase(), true);
+            joinRoom(custom || 'PRIV' + Math.floor(1000 + Math.random() * 9000), true);
         };
+
+        // UI Helpers
+        function initLobbyUI() {
+            const colorGrid = document.getElementById('color-grid');
+            const iconGrid = document.getElementById('icon-grid');
+            const paletteEl = document.getElementById('palette');
+
+            AVATAR_COLORS.forEach(c => {
+                const btn = document.createElement('button');
+                btn.className = "h-8 rounded-lg border-2 border-transparent hover:scale-110 transition-all";
+                btn.style.backgroundColor = c;
+                btn.onclick = () => { selectedAvatarColor = c; document.getElementById('avatar-preview').style.backgroundColor = c; };
+                colorGrid.appendChild(btn);
+            });
+
+            AVATAR_ICONS.forEach(i => {
+                const btn = document.createElement('button');
+                btn.className = "text-2xl p-1 rounded-xl hover:bg-slate-100 hover:scale-110 transition-all select-none";
+                btn.innerText = i;
+                btn.onclick = () => { selectedAvatarIcon = i; document.getElementById('avatar-preview').innerText = i; };
+                iconGrid.appendChild(btn);
+            });
+
+            PALETTE.forEach(c => {
+                const btn = document.createElement('button');
+                btn.className = "w-7 h-7 rounded-full border-2 border-white shadow-sm hover:scale-125 transition-all";
+                btn.style.backgroundColor = c;
+                btn.onclick = () => { currentColor = c; isErasing = false; document.getElementById('eraser-btn').style.borderColor = 'transparent'; };
+                paletteEl.appendChild(btn);
+            });
+        }
 
         document.getElementById('brush-size').oninput = (e) => {
             brushSize = parseInt(e.target.value);
@@ -541,7 +541,9 @@
 
         document.getElementById('exit-game').onclick = () => location.reload();
         window.addEventListener('resize', resizeCanvas);
-        initLobbyUI(); initAuth();
+        
+        initLobbyUI();
+        initAuth();
     </script>
 </body>
 </html>

@@ -106,6 +106,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
+        // Global environment variables
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyBIMQt_N3Z4nLabjV9Erj7SzlvHmhaqo4Q",
             authDomain: "chat-78682.firebaseapp.com",
@@ -144,17 +145,20 @@
                 document.getElementById('quick-play').disabled = true;
                 document.getElementById('join-private').disabled = true;
 
+                // Priority check for initial auth token
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
+                    await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
             } catch (e) {
+                console.error("Auth Init Error:", e);
                 document.getElementById('status-display').innerText = "Database error. Please refresh.";
             }
         }
 
         async function joinRoom(id) {
+            // Rule 3: Auth Before Queries
             if (!user) {
                 document.getElementById('status-display').innerText = "Still connecting to server...";
                 return;
@@ -166,7 +170,7 @@
             document.getElementById('status-display').innerText = `Joining ${rid}...`;
             const name = document.getElementById('player-name').value.trim() || 'Player' + Math.floor(Math.random()*99);
             
-            // CORRECT PATH FOR PUBLIC DATA: /artifacts/{appId}/public/data/{collectionName}/{docId}
+            // Rule 1: Strict Paths - /artifacts/{appId}/public/data/{collectionName}/{docId}
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', rid);
 
             try {
@@ -201,13 +205,19 @@
                 heartbeat();
             } catch (err) {
                 console.error("Join Error Details:", err);
-                document.getElementById('status-display').innerText = `Join failed: ${err.code === 'permission-denied' ? 'Permission Error (Check path logic)' : (err.message || 'Check connection')}`;
+                // Providing more descriptive feedback for Rule 1 violations
+                if (err.code === 'permission-denied') {
+                    document.getElementById('status-display').innerText = "Join failed: Access Denied. Verifying path logic...";
+                } else {
+                    document.getElementById('status-display').innerText = `Join failed: ${err.message || 'Check connection'}`;
+                }
             }
         }
 
         function listen() {
             if (!currentRoomId || !user) return;
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            
             onSnapshot(roomRef, (s) => {
                 if (!s.exists()) return;
                 roomData = s.data();
@@ -220,7 +230,7 @@
 
         function heartbeat() {
             setInterval(async () => {
-                if (!roomData || roomData.currentDrawer !== user.uid || !currentRoomId) return;
+                if (!roomData || roomData.currentDrawer !== user.uid || !currentRoomId || !user) return;
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
                 let t = (roomData.timer || 80) - 1;
                 if (t <= 0) {
@@ -305,7 +315,7 @@
             drawLines(currentLines);
         };
         window.onmouseup = async () => {
-            if (!isDrawing) return;
+            if (!isDrawing || !user || !currentRoomId) return;
             isDrawing = false;
             try {
                 const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
@@ -322,7 +332,7 @@
         document.getElementById('chat-form').onsubmit = async (e) => {
             e.preventDefault();
             const val = document.getElementById('chat-input').value.trim().toUpperCase();
-            if (!val || !roomData || !currentRoomId) return;
+            if (!val || !roomData || !currentRoomId || !user) return;
             const isCorrect = val === (roomData.currentWord || "").toUpperCase();
             const me = roomData.players.find(p => p.id === user.uid);
             const name = me ? me.name : 'Unknown';
@@ -356,7 +366,7 @@
         };
         document.getElementById('join-private').onclick = () => joinRoom(document.getElementById('room-code-input').value || 'ROOM1');
         document.getElementById('clear-btn').onclick = () => {
-            if (!currentRoomId) return;
+            if (!currentRoomId || !user) return;
             updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: [] });
         };
 

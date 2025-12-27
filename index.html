@@ -14,7 +14,7 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .animate-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        canvas { touch-action: none; background-color: white; }
+        canvas { touch-action: none; background-color: white; border-radius: 1rem; }
     </style>
 </head>
 <body class="bg-slate-100 overflow-hidden">
@@ -24,7 +24,7 @@
         <div class="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-2xl overflow-hidden">
             <div class="text-center mb-8">
                 <h1 class="text-6xl font-black text-blue-600 italic tracking-tighter drop-shadow-sm">skribbl.io</h1>
-                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">Multiplayer LAN Edition</p>
+                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">Multiplayer Edition</p>
             </div>
             
             <div class="flex flex-col md:flex-row gap-8">
@@ -62,11 +62,10 @@
                     <div class="space-y-3">
                         <div class="flex gap-2">
                             <input id="room-code-input" type="text" placeholder="CODE..." maxlength="6" class="flex-1 px-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-purple-500 outline-none font-mono font-bold uppercase tracking-widest text-center">
-                            <button id="create-private" class="bg-purple-600 hover:bg-purple-700 text-white px-6 rounded-2xl transition-all shadow-lg active:scale-90 flex items-center justify-center" title="Create or Join Private Room">
+                            <button id="create-private" class="bg-purple-600 hover:bg-purple-700 text-white px-6 rounded-2xl transition-all shadow-lg active:scale-90 flex items-center justify-center">
                                 <span class="text-2xl font-bold">+</span>
                             </button>
                         </div>
-                        <p class="text-[10px] text-center text-slate-400 font-bold">Share the same code to play on "LAN"</p>
                     </div>
                 </div>
             </div>
@@ -93,7 +92,6 @@
 
         <!-- Main Content -->
         <div class="flex-1 flex flex-col relative min-w-0">
-            <!-- Header/Status Bar -->
             <div class="bg-white border-b border-slate-200 flex flex-col z-10">
                 <div class="h-16 flex items-center justify-between px-6">
                     <div class="flex items-center gap-4">
@@ -122,12 +120,10 @@
                 </div>
             </div>
 
-            <!-- Canvas Container -->
             <div class="flex-1 bg-slate-200 p-4 relative overflow-hidden">
-                <div class="w-full h-full bg-white rounded-2xl shadow-inner relative overflow-hidden canvas-container border-4 border-white">
-                    <canvas id="game-canvas" class="w-full h-full"></canvas>
+                <div class="w-full h-full relative overflow-hidden canvas-container">
+                    <canvas id="game-canvas" class="w-full h-full shadow-lg"></canvas>
                     
-                    <!-- Overlay for non-drawers -->
                     <div id="drawer-overlay" class="hidden absolute inset-0 bg-slate-900/5 pointer-events-none flex flex-col items-center justify-center">
                         <div class="bg-white/95 backdrop-blur-md px-8 py-4 rounded-3xl border border-white shadow-2xl flex items-center gap-4 text-slate-800 font-bold italic animate-bounce">
                             <span class="text-3xl">🎨</span>
@@ -141,14 +137,14 @@
             </div>
         </div>
 
-        <!-- Sidebar: Chat/Feed -->
+        <!-- Sidebar: Chat -->
         <div class="w-full md:w-80 bg-slate-50 border-l border-slate-200 flex flex-col shrink-0 h-64 md:h-full">
             <div class="p-4 border-b border-slate-200 bg-white">
-                <h2 class="font-black italic flex items-center gap-2 text-slate-700 text-xs tracking-widest uppercase">💬 Chat & Guesses</h2>
+                <h2 class="font-black italic flex items-center gap-2 text-slate-700 text-xs tracking-widest uppercase">💬 Feed</h2>
             </div>
             <div id="chat-messages" class="flex-1 overflow-y-auto p-4 flex flex-col space-y-2 no-scrollbar"></div>
             <form id="chat-form" class="p-4 bg-white border-t border-slate-200 flex gap-2">
-                <input id="chat-input" type="text" autocomplete="off" placeholder="Guess the word..." class="flex-1 px-4 py-3 bg-slate-100 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+                <input id="chat-input" type="text" autocomplete="off" placeholder="Guess the word..." class="flex-1 px-4 py-3 bg-slate-100 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold disabled:opacity-50">
                 <button id="chat-submit" type="submit" class="p-3 bg-blue-600 text-white rounded-2xl shadow-lg active:scale-95 transition-all">📤</button>
             </form>
         </div>
@@ -157,34 +153,45 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, getDocs, query, where, limit } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        // CONFIG
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // FALLBACK CONFIG FOR GITHUB PAGES
+        const defaultFirebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : defaultFirebaseConfig;
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : "skribbl-lan-v1";
+        const appId = typeof __app_id !== 'undefined' ? __app_id : "skribbl-public-v1";
 
-        // GAME STATE
+        // GAME CONSTANTS
+        const WORDS = ['Pizza', 'Elephant', 'Laptop', 'Rocket', 'Cactus', 'Volcano', 'Guitar', 'Bicycle', 'Snowman', 'Pyramid', 'Donut', 'Pencil', 'Castle', 'Dragon', 'Camera', 'Balloon', 'Lighthouse', 'Burger', 'Submarine', 'Sunflower'];
+        const AVATAR_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4'];
+        const AVATAR_ICONS = ['🐱', '🐶', '🦊', '🐨', '🦁', '🐸', '🦄', '🐼', '🤖', '👾', '👻', '🤡'];
+        const PALETTE = ['#000000', '#ffffff', '#7f7f7f', '#ee1b24', '#ff7e26', '#fef200', '#22b14c', '#00a2e8', '#3f48cc', '#a349a4', '#b97a57', '#ffaec9'];
+
+        // STATE
         let user = null;
         let currentRoomId = null;
         let isDrawing = false;
         let roomData = null;
         let localLines = [];
-        
-        const AVATAR_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4'];
-        const AVATAR_ICONS = ['🐱', '🐶', '🦊', '🐨', '🦁', '🐸', '🦄', '🐼', '🤖', '👾', '👻', '🤡'];
-        const PALETTE = ['#000000', '#ffffff', '#7f7f7f', '#ee1b24', '#ff7e26', '#fef200', '#22b14c', '#00a2e8', '#3f48cc', '#a349a4', '#b97a57', '#ffaec9'];
-        const WORDS = ['Pizza', 'Elephant', 'Laptop', 'Rocket', 'Cactus', 'Volcano', 'Guitar', 'Bicycle', 'Snowman', 'Pyramid', 'Donut', 'Pencil', 'Castle', 'Dragon', 'Camera', 'Balloon', 'Lighthouse', 'Burger'];
-
         let selectedAvatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
         let selectedAvatarIcon = AVATAR_ICONS[Math.floor(Math.random() * AVATAR_ICONS.length)];
         let currentColor = '#000000';
         let brushSize = 5;
         let isErasing = false;
 
-        // UI ELEMENTS
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
         const lobbyView = document.getElementById('lobby-view');
@@ -198,12 +205,9 @@
 
             AVATAR_COLORS.forEach(c => {
                 const btn = document.createElement('button');
-                btn.className = "h-8 rounded-lg border-2 border-transparent hover:scale-110 transition-all shadow-sm";
+                btn.className = "h-8 rounded-lg border-2 border-transparent hover:scale-110 transition-all";
                 btn.style.backgroundColor = c;
-                btn.onclick = () => {
-                    selectedAvatarColor = c;
-                    document.getElementById('avatar-preview').style.backgroundColor = c;
-                };
+                btn.onclick = () => { selectedAvatarColor = c; document.getElementById('avatar-preview').style.backgroundColor = c; };
                 colorGrid.appendChild(btn);
             });
 
@@ -211,10 +215,7 @@
                 const btn = document.createElement('button');
                 btn.className = "text-2xl p-1 rounded-xl hover:bg-slate-100 hover:scale-110 transition-all select-none";
                 btn.innerText = i;
-                btn.onclick = () => {
-                    selectedAvatarIcon = i;
-                    document.getElementById('avatar-preview').innerText = i;
-                };
+                btn.onclick = () => { selectedAvatarIcon = i; document.getElementById('avatar-preview').innerText = i; };
                 iconGrid.appendChild(btn);
             });
 
@@ -222,11 +223,7 @@
                 const btn = document.createElement('button');
                 btn.className = "w-7 h-7 rounded-full border-2 border-white shadow-sm hover:scale-125 transition-all";
                 btn.style.backgroundColor = c;
-                btn.onclick = () => {
-                    currentColor = c;
-                    isErasing = false;
-                    document.getElementById('eraser-btn').style.borderColor = 'transparent';
-                };
+                btn.onclick = () => { currentColor = c; isErasing = false; document.getElementById('eraser-btn').style.borderColor = 'transparent'; };
                 paletteEl.appendChild(btn);
             });
 
@@ -235,28 +232,22 @@
         }
 
         async function initAuth() {
-            const initAuthFlow = async () => {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            };
-
             onAuthStateChanged(auth, u => {
                 user = u;
                 document.getElementById('quick-play').disabled = false;
             });
-
-            await initAuthFlow();
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth).catch(e => console.warn("Anon auth failed, check Firebase settings", e));
+            }
         }
 
         async function joinRoom(roomId, isPrivate) {
             if (!user) return;
-            const name = document.getElementById('player-name').value.trim() || 'Guest' + Math.floor(Math.random()*1000);
+            const name = document.getElementById('player-name').value.trim() || 'Player' + Math.floor(Math.random()*1000);
             currentRoomId = roomId.toUpperCase();
             
-            // Rule 1 path
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
             const playerInfo = { 
                 id: user.uid, 
@@ -267,40 +258,35 @@
                 lastSeen: Date.now()
             };
 
-            try {
-                const snap = await getDoc(roomRef);
-                if (!snap.exists()) {
-                    await setDoc(roomRef, {
-                        id: currentRoomId,
-                        isPrivate,
-                        players: [playerInfo],
-                        currentDrawer: user.uid,
-                        currentWord: WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase(),
-                        lines: [],
-                        messages: [],
-                        timer: 80,
-                        lastTick: Date.now(),
-                        roundActive: true
-                    });
-                } else {
-                    const data = snap.data();
-                    if (!data.players.find(p => p.id === user.uid)) {
-                        await updateDoc(roomRef, { players: arrayUnion(playerInfo) });
-                    }
+            const snap = await getDoc(roomRef);
+            if (!snap.exists()) {
+                await setDoc(roomRef, {
+                    id: currentRoomId,
+                    isPrivate,
+                    players: [playerInfo],
+                    currentDrawer: user.uid,
+                    currentWord: WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase(),
+                    lines: [],
+                    messages: [],
+                    timer: 80,
+                    lastTick: Date.now()
+                });
+            } else {
+                const data = snap.data();
+                if (!data.players.find(p => p.id === user.uid)) {
+                    await updateDoc(roomRef, { players: arrayUnion(playerInfo) });
                 }
-
-                lobbyView.classList.add('hidden');
-                gameView.classList.remove('hidden');
-                document.getElementById('display-room-id').innerText = currentRoomId;
-                
-                // Allow time for DOM display before measuring canvas
-                setTimeout(() => {
-                    resizeCanvas();
-                    listenToRoom();
-                }, 100);
-            } catch (err) {
-                console.error("Join error:", err);
             }
+
+            lobbyView.classList.add('hidden');
+            gameView.classList.remove('hidden');
+            document.getElementById('display-room-id').innerText = currentRoomId;
+            
+            setTimeout(() => {
+                resizeCanvas();
+                listenToRoom();
+                startHeartbeat();
+            }, 200);
         }
 
         function listenToRoom() {
@@ -310,7 +296,32 @@
                 roomData = snapshot.data();
                 updateUI();
                 if (!isDrawing) redrawCanvas(roomData.lines);
-            }, (err) => console.error("Sync error:", err));
+            });
+        }
+
+        function startHeartbeat() {
+            // Very simple timer logic: the drawer is responsible for updating the timer in Firestore
+            setInterval(async () => {
+                if (!roomData || roomData.currentDrawer !== user.uid) return;
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+                let newTimer = (roomData.timer || 80) - 1;
+                
+                if (newTimer <= 0) {
+                    // Turn over
+                    const players = roomData.players;
+                    const drawerIdx = players.findIndex(p => p.id === user.uid);
+                    const nextIdx = (drawerIdx + 1) % players.length;
+                    await updateDoc(roomRef, {
+                        timer: 80,
+                        currentDrawer: players[nextIdx].id,
+                        currentWord: WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase(),
+                        lines: [],
+                        messages: arrayUnion({ sender: 'System', text: `Time's up! The word was: ${roomData.currentWord}`, system: true })
+                    });
+                } else {
+                    await updateDoc(roomRef, { timer: newTimer });
+                }
+            }, 1000);
         }
 
         function updateUI() {
@@ -321,7 +332,7 @@
             list.innerHTML = '';
             [...roomData.players].sort((a,b) => b.score - a.score).forEach(p => {
                 const div = document.createElement('div');
-                div.className = `flex items-center justify-between p-3 rounded-2xl ${p.id === user.uid ? 'bg-blue-50 border border-blue-100 ring-2 ring-blue-500/10' : 'bg-slate-50'}`;
+                div.className = `flex items-center justify-between p-3 rounded-2xl ${p.id === user.uid ? 'bg-blue-50 border border-blue-200' : 'bg-slate-50'}`;
                 div.innerHTML = `
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-sm" style="background:${p.avatarColor}">${p.avatarIcon}</div>
@@ -330,61 +341,48 @@
                             <p class="text-[10px] text-blue-600 font-black uppercase mt-1">${p.score} pts</p>
                         </div>
                     </div>
-                    ${roomData.currentDrawer === p.id ? '<span class="text-xl animate-pulse">✏️</span>' : ''}
+                    ${roomData.currentDrawer === p.id ? '✏️' : ''}
                 `;
                 list.appendChild(div);
             });
 
-            // Timer & Word
-            document.getElementById('timer-box').innerText = Math.max(0, roomData.timer || 0);
+            document.getElementById('timer-box').innerText = roomData.timer || 0;
             const word = roomData.currentWord || "";
             document.getElementById('word-display').innerText = isDrawer 
                 ? word.toUpperCase().split('').join(' ') 
                 : word.split('').map(() => '_').join(' ');
 
-            // Controls visibility
             const chatInput = document.getElementById('chat-input');
             if (isDrawer) {
                 chatInput.disabled = true;
-                chatInput.placeholder = "You are drawing!";
-                document.getElementById('drawer-tools').classList.replace('hidden', 'flex');
-                document.getElementById('tool-bar').classList.replace('hidden', 'flex');
+                chatInput.placeholder = "Drawing...";
+                document.getElementById('drawer-tools').classList.remove('hidden');
+                document.getElementById('tool-bar').classList.remove('hidden');
                 document.getElementById('drawer-overlay').classList.add('hidden');
             } else {
                 chatInput.disabled = false;
-                chatInput.placeholder = "Type your guess...";
-                document.getElementById('drawer-tools').classList.replace('flex', 'hidden');
-                document.getElementById('tool-bar').classList.replace('flex', 'hidden');
+                chatInput.placeholder = "Guess...";
+                document.getElementById('drawer-tools').classList.add('hidden');
+                document.getElementById('tool-bar').classList.add('hidden');
                 document.getElementById('drawer-overlay').classList.remove('hidden');
                 const dr = roomData.players.find(p => p.id === roomData.currentDrawer);
                 document.getElementById('drawer-name-notif').innerText = dr ? dr.name : 'Someone';
             }
 
-            // Chat Feed
             chatMessages.innerHTML = '';
-            roomData.messages.slice(-50).forEach(m => {
+            roomData.messages.slice(-40).forEach(m => {
                 const div = document.createElement('div');
-                div.className = `p-2 rounded-xl text-sm transition-all animate-in ${m.system ? 'bg-green-100 text-green-800 font-bold' : 'bg-white shadow-sm border border-slate-100'}`;
-                div.innerHTML = `
-                    <div class="flex gap-2">
-                        ${!m.system ? `<span class="opacity-50">${m.avatarIcon || '👤'}</span>` : ''}
-                        <div>
-                            ${!m.system ? `<span class="text-[9px] font-black uppercase text-slate-400 block">${m.sender}</span>` : ''}
-                            <span class="break-words">${m.text}</span>
-                        </div>
-                    </div>
-                `;
+                div.className = `p-2 rounded-xl text-sm ${m.system ? 'bg-green-100 text-green-800 font-bold' : 'bg-white shadow-sm border border-slate-100'}`;
+                div.innerHTML = `<strong>${m.sender}:</strong> ${m.text}`;
                 chatMessages.appendChild(div);
             });
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // CANVAS LOGIC
         function resizeCanvas() {
             const container = canvas.parentElement;
-            const rect = container.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
             if (roomData) redrawCanvas(roomData.lines);
         }
 
@@ -393,7 +391,7 @@
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             lines.forEach(line => {
-                if (!line.points || line.points.length < 1) return;
+                if (!line.points.length) return;
                 ctx.beginPath();
                 ctx.strokeStyle = line.color;
                 ctx.lineWidth = line.size;
@@ -411,43 +409,70 @@
             const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return { 
-                x: (clientX - rect.left) / canvas.width, 
-                y: (clientY - rect.top) / canvas.height 
-            };
+            return { x: (clientX - rect.left) / canvas.width, y: (clientY - rect.top) / canvas.height };
         }
 
-        function startDrawing(e) {
+        canvas.addEventListener('mousedown', (e) => {
             if (!roomData || roomData.currentDrawer !== user.uid) return;
             isDrawing = true;
-            localLines = [...roomData.lines, { 
-                color: isErasing ? '#ffffff' : currentColor, 
-                size: brushSize, 
-                points: [getPos(e)] 
-            }];
+            localLines = [...roomData.lines, { color: isErasing ? '#ffffff' : currentColor, size: brushSize, points: [getPos(e)] }];
             redrawCanvas(localLines);
-        }
+        });
 
-        function draw(e) {
+        canvas.addEventListener('mousemove', (e) => {
             if (!isDrawing) return;
             localLines[localLines.length - 1].points.push(getPos(e));
             redrawCanvas(localLines);
-        }
+        });
 
-        async function stopDrawing() {
+        window.addEventListener('mouseup', async () => {
             if (!isDrawing) return;
             isDrawing = false;
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-            await updateDoc(roomRef, { lines: localLines });
-        }
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: localLines });
+        });
 
-        // INTERACTIONS
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        window.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); });
-        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
-        canvas.addEventListener('touchend', stopDrawing);
+        // Touch support
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); /* trigger mousedown logic */ });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); /* trigger mousemove logic */ });
+
+        document.getElementById('chat-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const val = input.value.trim();
+            if (!val || roomData.currentDrawer === user.uid) return;
+
+            const isCorrect = val.toLowerCase() === roomData.currentWord.toLowerCase();
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            
+            const msg = { sender: document.getElementById('player-name').value || 'Guest', text: isCorrect ? 'Guessed the word! ✨' : val, system: isCorrect };
+            let updates = { messages: arrayUnion(msg) };
+
+            if (isCorrect) {
+                const players = [...roomData.players];
+                const drawerIdx = players.findIndex(p => p.id === roomData.currentDrawer);
+                const nextIdx = (drawerIdx + 1) % players.length;
+                updates.players = players.map(p => p.id === user.uid ? {...p, score: p.score + 10} : p);
+                updates.currentDrawer = players[nextIdx].id;
+                updates.currentWord = WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase();
+                updates.lines = [];
+                updates.timer = 80;
+            }
+            
+            await updateDoc(roomRef, updates);
+            input.value = '';
+        };
+
+        document.getElementById('quick-play').onclick = async () => {
+            const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'rooms'));
+            let target = null;
+            snap.forEach(d => { if (!d.data().isPrivate && d.data().players.length < 8) target = d.id; });
+            joinRoom(target || 'ROOM' + Math.floor(Math.random()*1000), false);
+        };
+
+        document.getElementById('create-private').onclick = () => {
+            const custom = document.getElementById('room-code-input').value.trim();
+            joinRoom(custom || Math.random().toString(36).substring(7).toUpperCase(), true);
+        };
 
         document.getElementById('brush-size').oninput = (e) => {
             brushSize = parseInt(e.target.value);
@@ -460,80 +485,14 @@
         };
 
         document.getElementById('clear-btn').onclick = async () => {
-            if (!roomData || roomData.currentDrawer !== user.uid) return;
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: [] });
-        };
-
-        document.getElementById('chat-form').onsubmit = async (e) => {
-            e.preventDefault();
-            const input = document.getElementById('chat-input');
-            const val = input.value.trim();
-            if (!val || !roomData || !user || roomData.currentDrawer === user.uid) return;
-
-            const isCorrect = val.toLowerCase() === roomData.currentWord.toLowerCase();
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-            
-            const msg = { 
-                sender: document.getElementById('player-name').value || 'Guest', 
-                text: isCorrect ? '✨ Guessed the word!' : val, 
-                system: isCorrect, 
-                avatarIcon: selectedAvatarIcon, 
-                timestamp: Date.now() 
-            };
-            
-            let updates = { messages: arrayUnion(msg) };
-
-            if (isCorrect) {
-                // Scoring and Rotation
-                const players = [...roomData.players];
-                const drawerIdx = players.findIndex(p => p.id === roomData.currentDrawer);
-                const nextIdx = (drawerIdx + 1) % players.length;
-                
-                updates.players = players.map(p => p.id === user.uid ? {...p, score: p.score + 10} : p);
-                updates.currentDrawer = players[nextIdx].id;
-                updates.currentWord = WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase();
-                updates.lines = []; 
-                updates.timer = 80; // Reset timer
+            if (roomData.currentDrawer === user.uid) {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: [] });
             }
-            
-            await updateDoc(roomRef, updates);
-            input.value = '';
-        };
-
-        // BUTTON HANDLERS
-        document.getElementById('quick-play').onclick = async () => {
-            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
-            const snap = await getDocs(colRef);
-            let target = null;
-            // Rule 2: filter in memory
-            snap.forEach(d => {
-                const data = d.data();
-                if (!data.isPrivate && data.players.length < 8) target = d.id;
-            });
-            joinRoom(target || 'LAN' + Math.floor(Math.random()*999), false);
-        };
-
-        document.getElementById('create-private').onclick = () => {
-            const custom = document.getElementById('room-code-input').value.trim();
-            joinRoom(custom || Math.random().toString(36).substring(2,8).toUpperCase(), true);
-        };
-
-        document.getElementById('copy-code-btn').onclick = () => {
-            const code = document.getElementById('display-room-id').innerText;
-            const el = document.createElement('textarea');
-            el.value = code;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
         };
 
         document.getElementById('exit-game').onclick = () => location.reload();
-
-        // INIT
-        initLobbyUI(); 
-        initAuth(); 
         window.addEventListener('resize', resizeCanvas);
+        initLobbyUI(); initAuth();
     </script>
 </body>
 </html>

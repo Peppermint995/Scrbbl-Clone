@@ -45,7 +45,7 @@
                         <div class="flex items-center justify-between">
                             <div class="text-left">
                                 <p class="text-2xl font-black italic">QUICK PLAY</p>
-                                <p class="text-blue-200 text-xs font-bold uppercase tracking-widest">Public Lobby</p>
+                                <p class="text-blue-200 text-xs font-bold uppercase tracking-widest">Join Lobby</p>
                             </div>
                             <span class="text-3xl opacity-50 group-hover:opacity-100">🌍</span>
                         </div>
@@ -145,23 +145,24 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBIMQt_N3Z4nLabjV9Erj7SzlvHmhaqo4Q",
-            authDomain: "chat-78682.firebaseapp.com",
-            projectId: "chat-78682",
-            storageBucket: "chat-78682.firebasestorage.app",
-            messagingSenderId: "650441779462",
-            appId: "1:650441779462:web:8ad0bc03119881ec49d687",
-            measurementId: "G-R4VY4PVDV4"
-        };
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "AIzaSyBIMQt_N3Z4nLabjV9Erj7SzlvHmhaqo4Q",
+                authDomain: "chat-78682.firebaseapp.com",
+                projectId: "chat-78682",
+                storageBucket: "chat-78682.firebasestorage.app",
+                messagingSenderId: "650441779462",
+                appId: "1:650441779462:web:8ad0bc03119881ec49d687",
+            };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = "skribbl-clone-prod";
+        const appId = typeof __app_id !== 'undefined' ? __app_id : "skribbl-clone-prod";
 
         let user = null;
         let currentRoomId = null;
@@ -233,14 +234,15 @@
             });
 
             try {
-                // To fix the auth/configuration-not-found error, 
-                // go to Firebase Console > Authentication > Sign-in method > Enable Anonymous.
-                await signInAnonymously(auth);
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
             } catch (err) {
                 console.error("Auth error:", err);
-                if (err.code === 'auth/configuration-not-found') {
+                if (err.code === 'auth/configuration-not-found' || err.code === 'auth/operation-not-allowed') {
                     document.getElementById('auth-warning').classList.remove('hidden');
-                    // Fallback to local session ID so the app doesn't crash
                     if (!user) {
                         user = { uid: 'anon-' + Math.random().toString(36).substring(2, 9) };
                         document.getElementById('quick-play').disabled = false;
@@ -254,6 +256,7 @@
             const playerName = document.getElementById('player-name').value.trim() || 'Guest' + Math.floor(Math.random()*1000);
             currentRoomId = roomId.toUpperCase();
             
+            // Following Rule 1: /artifacts/{appId}/public/data/{collectionName}
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
             const playerData = { id: user.uid, name: playerName, score: 0, avatarColor: selectedAvatarColor, avatarIcon: selectedAvatarIcon };
 
@@ -285,7 +288,7 @@
                 listenToRoom();
             } catch (fErr) {
                 console.error("Firestore Permission Error:", fErr);
-                alert("Room join failed. Check Firebase console for Authentication and Firestore Rules.");
+                alert("Room join failed. Make sure you are using valid paths and auth is initialized.");
             }
         }
 
@@ -296,31 +299,34 @@
                 roomData = snapshot.data();
                 updateUI();
                 if (!isDrawing) redrawCanvas(roomData.lines);
-            }, (err) => console.error("Room sync error:", err));
+            }, (err) => {
+                console.error("Room sync error:", err);
+            });
         }
 
         function updateUI() {
             const isDrawer = roomData.currentDrawer === user.uid;
             const list = document.getElementById('player-list');
             list.innerHTML = '';
+            
+            // Sort by score locally (Rule 2)
             [...roomData.players].sort((a,b) => b.score - a.score).forEach(p => {
                 const item = document.createElement('div');
-                item.className = `flex items-center justify-between p-2.5 rounded-xl ${p.id === user.uid ? 'bg-blue-50' : ''}`;
+                item.className = `flex items-center justify-between p-2.5 rounded-xl ${p.id === user.uid ? 'bg-blue-50 border border-blue-100' : ''}`;
                 item.innerHTML = `
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xl shadow-sm" style="background:${p.avatarColor}">${p.avatarIcon}</div>
                         <div>
-                            <p class="text-sm font-bold">${p.name}</p>
+                            <p class="text-sm font-bold text-slate-800">${p.name}</p>
                             <p class="text-[10px] text-blue-600 font-black">${p.score} PTS</p>
                         </div>
                     </div>
-                    ${roomData.currentDrawer === p.id ? '✏️' : ''}
+                    ${roomData.currentDrawer === p.id ? '<span class="text-blue-500 text-lg">✏️</span>' : ''}
                 `;
                 list.appendChild(item);
             });
 
             const chatInput = document.getElementById('chat-input');
-            const chatBtn = document.getElementById('chat-submit');
             if (isDrawer) {
                 chatInput.disabled = true;
                 chatInput.placeholder = "Drawing...";
@@ -344,7 +350,7 @@
             chatMessages.innerHTML = '';
             roomData.messages.slice(-40).forEach(m => {
                 const div = document.createElement('div');
-                div.className = `text-sm flex gap-3 animate-in ${m.system ? 'bg-green-100 p-2 rounded-lg' : ''}`;
+                div.className = `text-sm flex gap-3 animate-in ${m.system ? 'bg-green-50 border border-green-100 p-2 rounded-lg' : ''}`;
                 div.innerHTML = `<span class="shrink-0">${m.avatarIcon || '👤'}</span><div class="min-w-0 flex-1"><p class="font-bold text-[9px] text-slate-400 uppercase">${m.sender}</p><p class="text-slate-700 break-words">${m.text}</p></div>`;
                 chatMessages.appendChild(div);
             });
@@ -394,6 +400,7 @@
         async function stopDrawing() {
             if (!isDrawing) return;
             isDrawing = false;
+            if (!user || !currentRoomId) return;
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
             await updateDoc(roomRef, { lines: localLines });
         }
@@ -416,7 +423,7 @@
         };
 
         document.getElementById('clear-btn').onclick = async () => {
-            if (roomData.currentDrawer !== user.uid) return;
+            if (!user || roomData.currentDrawer !== user.uid) return;
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: [] });
         };
 
@@ -424,12 +431,19 @@
             e.preventDefault();
             const input = document.getElementById('chat-input');
             const val = input.value.trim();
-            if (!val || !roomData || roomData.currentDrawer === user.uid) return;
+            if (!val || !roomData || !user || roomData.currentDrawer === user.uid) return;
 
             const isCorrect = val.toLowerCase() === roomData.currentWord.toLowerCase();
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
             
-            const msg = { sender: document.getElementById('player-name').value || 'Guest', text: isCorrect ? 'GUESSED THE WORD!' : val, system: isCorrect, avatarIcon: selectedAvatarIcon, timestamp: Date.now() };
+            const msg = { 
+                sender: document.getElementById('player-name').value || 'Guest', 
+                text: isCorrect ? 'GUESSED THE WORD!' : val, 
+                system: isCorrect, 
+                avatarIcon: selectedAvatarIcon, 
+                timestamp: Date.now() 
+            };
+            
             let updates = { messages: arrayUnion(msg) };
 
             if (isCorrect) {
@@ -437,7 +451,8 @@
                 updates.players = roomData.players.map(p => p.id === user.uid ? {...p, score: p.score + 10} : p);
                 updates.currentDrawer = roomData.players[nextIdx].id;
                 updates.currentWord = WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase();
-                updates.lines = []; updates.hintIndices = [];
+                updates.lines = []; 
+                updates.hintIndices = [];
             }
             await updateDoc(roomRef, updates);
             input.value = '';
@@ -445,18 +460,36 @@
 
         document.getElementById('quick-play').onclick = async () => {
             const roomsCol = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
-            const snap = await getDocs(query(roomsCol, limit(1)));
+            // Rule 2: Fetch and filter in memory
+            const snap = await getDocs(roomsCol);
             let target = null;
-            snap.forEach(d => { if(!d.data().isPrivate) target = d.id; });
-            joinRoom(target || 'PUB-' + Math.random().toString(36).substring(2,7).toUpperCase(), false);
+            snap.forEach(d => { 
+                const data = d.data();
+                if(!data.isPrivate && data.players.length < 8) target = d.id; 
+            });
+            joinRoom(target || 'ROOM-' + Math.random().toString(36).substring(2,7).toUpperCase(), false);
         };
 
         document.getElementById('create-private').onclick = () => {
-            joinRoom(document.getElementById('room-code-input').value || Math.random().toString(36).substring(2,8).toUpperCase(), true);
+            const customCode = document.getElementById('room-code-input').value.trim();
+            joinRoom(customCode || Math.random().toString(36).substring(2,8).toUpperCase(), true);
+        };
+
+        document.getElementById('copy-code-btn').onclick = () => {
+            const code = document.getElementById('display-room-id').innerText;
+            const el = document.createElement('textarea');
+            el.value = code;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
         };
 
         document.getElementById('exit-game').onclick = () => location.reload();
-        initLobbyUI(); initAuth(); window.addEventListener('resize', resizeCanvas);
+        
+        initLobbyUI(); 
+        initAuth(); 
+        window.addEventListener('resize', resizeCanvas);
     </script>
 </body>
 </html>

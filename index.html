@@ -10,9 +10,10 @@
         body { font-family: 'Nunito', sans-serif; }
         .canvas-container { cursor: crosshair; }
         input[type="range"] { accent-color: #2563eb; }
-        /* Hide scrollbar but keep functionality */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-slate-100 overflow-hidden">
@@ -22,7 +23,7 @@
         <div class="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-2xl overflow-hidden">
             <div class="text-center mb-8">
                 <h1 class="text-6xl font-black text-blue-600 italic tracking-tighter drop-shadow-sm">skribbl.io</h1>
-                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">v2.2 HTML Edition</p>
+                <p class="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">Multiplayer Edition</p>
             </div>
             
             <div class="flex flex-col md:flex-row gap-8">
@@ -31,7 +32,7 @@
                         🐱
                     </div>
                     
-                    <input id="player-name" type="text" placeholder="Name..." maxlength="12" class="w-full px-5 py-4 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-center text-lg shadow-inner bg-slate-50">
+                    <input id="player-name" type="text" placeholder="Your Name..." maxlength="12" class="w-full px-5 py-4 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-bold text-center text-lg shadow-inner bg-slate-50">
 
                     <div class="mt-6 w-full space-y-4">
                         <div id="color-grid" class="grid grid-cols-4 gap-2"></div>
@@ -40,7 +41,7 @@
                 </div>
 
                 <div class="flex-1 flex flex-col justify-center space-y-4">
-                    <button id="quick-play" class="group w-full bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-2xl transition-all shadow-lg active:scale-95">
+                    <button id="quick-play" class="group w-full bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50" disabled>
                         <div class="flex items-center justify-between">
                             <div class="text-left">
                                 <p class="text-2xl font-black italic">QUICK PLAY</p>
@@ -59,11 +60,14 @@
                         <div class="flex gap-2">
                             <input id="room-code-input" type="text" placeholder="CODE..." maxlength="6" class="flex-1 px-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-purple-500 outline-none font-mono font-bold uppercase tracking-widest text-center">
                             <button id="create-private" class="bg-purple-600 hover:bg-purple-700 text-white px-6 rounded-2xl transition-all shadow-lg active:scale-90 flex items-center justify-center">
-                                <span class="text-2xl">+</span>
+                                <span class="text-2xl font-bold">+</span>
                             </button>
                         </div>
                     </div>
                 </div>
+            </div>
+            <div id="auth-warning" class="hidden mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-xs font-bold">
+                ⚠️ Anonymous Auth not enabled in Firebase Console. Using local session mode.
             </div>
         </div>
     </div>
@@ -98,15 +102,15 @@
                         </div>
                     </div>
                     <div id="drawer-tools" class="hidden items-center gap-3">
-                        <button id="eraser-btn" class="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200">🧽</button>
-                        <button id="clear-btn" class="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100">🗑️</button>
+                        <button id="eraser-btn" class="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 border-2 border-transparent" title="Eraser">🧽</button>
+                        <button id="clear-btn" class="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100" title="Clear Canvas">🗑️</button>
                     </div>
                 </div>
 
                 <div id="tool-bar" class="hidden h-20 bg-slate-50 border-t border-slate-100 items-center px-6 gap-6 overflow-x-auto no-scrollbar">
                     <div class="flex flex-col shrink-0 gap-1 min-w-[120px]">
                         <div class="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
-                            <span>Size</span>
+                            <span>Brush Size</span>
                             <span id="brush-size-label">5px</span>
                         </div>
                         <input id="brush-size" type="range" min="2" max="40" value="5" class="w-full">
@@ -133,37 +137,42 @@
             </div>
             <div id="chat-messages" class="flex-1 overflow-y-auto p-4 flex flex-col space-y-3"></div>
             <form id="chat-form" class="p-4 bg-white border-t border-slate-200 flex gap-2">
-                <input id="chat-input" type="text" placeholder="Type your guess..." class="flex-1 px-4 py-3 bg-slate-100 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold">
-                <button id="chat-submit" type="submit" class="p-3 bg-blue-600 text-white rounded-2xl shadow-lg active:scale-90">📤</button>
+                <input id="chat-input" type="text" placeholder="Type your guess..." class="flex-1 px-4 py-3 bg-slate-100 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold disabled:bg-slate-200 disabled:cursor-not-allowed">
+                <button id="chat-submit" type="submit" class="p-3 bg-blue-600 text-white rounded-2xl shadow-lg active:scale-90 disabled:opacity-50">📤</button>
             </form>
         </div>
     </div>
 
-    <!-- FIREBASE SETUP -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc, arrayUnion, getDoc, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        // Global State
-        const firebaseConfig = JSON.parse(__firebase_config);
+        const firebaseConfig = {
+            apiKey: "AIzaSyBIMQt_N3Z4nLabjV9Erj7SzlvHmhaqo4Q",
+            authDomain: "chat-78682.firebaseapp.com",
+            projectId: "chat-78682",
+            storageBucket: "chat-78682.firebasestorage.app",
+            messagingSenderId: "650441779462",
+            appId: "1:650441779462:web:8ad0bc03119881ec49d687",
+            measurementId: "G-R4VY4PVDV4"
+        };
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'skribbl-html-v1';
+        const appId = "skribbl-clone-prod";
 
         let user = null;
         let currentRoomId = null;
-        let isJoined = false;
         let isDrawing = false;
         let roomData = null;
         let localLines = [];
         
-        // Settings
         const AVATAR_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4'];
         const AVATAR_ICONS = ['🐱', '🐶', '🦊', '🐨', '🦁', '🐸', '🦄', '🐼', '🤖', '👾', '👻', '🤡'];
-        const COLORS = ['#000000', '#ffffff', '#4b4b4b', '#ee1b24', '#ff7e26', '#fef200', '#22b14c', '#00a2e8', '#3f48cc', '#a349a4', '#b97a57'];
-        const WORDS = ['Apple', 'Banana', 'Car', 'Dog', 'Elephant', 'Fire', 'Guitar', 'House', 'Ice Cream', 'Jungle', 'Kangaroo', 'Lamp', 'Mountain', 'Sun', 'Tree', 'Whale', 'Dragon', 'Pizza', 'Rocket', 'Snowman', 'Laptop', 'Burger', 'Bicycle', 'Castle'];
+        const COLORS = ['#000000', '#ffffff', '#4b4b4b', '#ee1b24', '#ff7e26', '#fef200', '#22b14c', '#00a2e8', '#3f48cc', '#a349a4'];
+        const WORDS = ['Apple', 'Banana', 'Pizza', 'Rocket', 'Laptop', 'Elephant', 'Guitar', 'Mountain', 'Robot', 'Bicycle', 'Castle', 'Dragon', 'Snowman', 'Burger', 'Submarine', 'Volcano', 'Parachute', 'Octopus'];
 
         let selectedAvatarColor = AVATAR_COLORS[0];
         let selectedAvatarIcon = AVATAR_ICONS[0];
@@ -171,14 +180,12 @@
         let brushSize = 5;
         let isErasing = false;
 
-        // Elements
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
         const lobbyView = document.getElementById('lobby-view');
         const gameView = document.getElementById('game-view');
         const chatMessages = document.getElementById('chat-messages');
 
-        // Init UI
         function initLobbyUI() {
             const colorGrid = document.getElementById('color-grid');
             const iconGrid = document.getElementById('icon-grid');
@@ -186,7 +193,7 @@
 
             AVATAR_COLORS.forEach(c => {
                 const btn = document.createElement('button');
-                btn.className = "h-8 rounded-lg border-2 border-transparent transition-all";
+                btn.className = "h-8 rounded-lg border-2 border-transparent hover:scale-110 transition-transform";
                 btn.style.backgroundColor = c;
                 btn.onclick = () => {
                     selectedAvatarColor = c;
@@ -197,7 +204,7 @@
 
             AVATAR_ICONS.forEach(i => {
                 const btn = document.createElement('button');
-                btn.className = "text-2xl p-1 rounded-xl hover:bg-slate-50";
+                btn.className = "text-2xl p-1 rounded-xl hover:bg-slate-100 hover:scale-110 transition-transform";
                 btn.innerText = i;
                 btn.onclick = () => {
                     selectedAvatarIcon = i;
@@ -208,115 +215,92 @@
 
             COLORS.forEach(c => {
                 const btn = document.createElement('button');
-                btn.className = "w-7 h-7 rounded-full border-2 border-transparent";
+                btn.className = "w-7 h-7 rounded-full border-2 border-slate-200 hover:scale-125 transition-transform";
                 btn.style.backgroundColor = c;
                 btn.onclick = () => {
                     currentColor = c;
                     isErasing = false;
+                    document.getElementById('eraser-btn').style.borderColor = 'transparent';
                 };
                 palette.appendChild(btn);
             });
         }
 
-        // Auth
         async function initAuth() {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
+            onAuthStateChanged(auth, u => {
+                user = u;
+                document.getElementById('quick-play').disabled = false;
+            });
+
+            try {
+                // To fix the auth/configuration-not-found error, 
+                // go to Firebase Console > Authentication > Sign-in method > Enable Anonymous.
                 await signInAnonymously(auth);
+            } catch (err) {
+                console.error("Auth error:", err);
+                if (err.code === 'auth/configuration-not-found') {
+                    document.getElementById('auth-warning').classList.remove('hidden');
+                    // Fallback to local session ID so the app doesn't crash
+                    if (!user) {
+                        user = { uid: 'anon-' + Math.random().toString(36).substring(2, 9) };
+                        document.getElementById('quick-play').disabled = false;
+                    }
+                }
             }
-            onAuthStateChanged(auth, u => user = u);
         }
 
-        // Room Management
         async function joinRoom(roomId, isPrivate) {
-            const playerName = document.getElementById('player-name').value || 'Anonymous';
+            if (!user) return;
+            const playerName = document.getElementById('player-name').value.trim() || 'Guest' + Math.floor(Math.random()*1000);
             currentRoomId = roomId.toUpperCase();
             
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
             const playerData = { id: user.uid, name: playerName, score: 0, avatarColor: selectedAvatarColor, avatarIcon: selectedAvatarIcon };
 
-            const snap = await getDoc(roomRef);
-            if (!snap.exists()) {
-                await setDoc(roomRef, {
-                    id: currentRoomId,
-                    isPrivate,
-                    players: [playerData],
-                    currentDrawer: user.uid,
-                    currentWord: WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase(),
-                    hintIndices: [], // Track revealed letters
-                    lines: [],
-                    messages: [],
-                    createdAt: Date.now()
-                });
-            } else {
-                const data = snap.data();
-                if (!data.players.find(p => p.id === user.uid)) {
-                    await updateDoc(roomRef, { players: arrayUnion(playerData) });
+            try {
+                const snap = await getDoc(roomRef);
+                if (!snap.exists()) {
+                    await setDoc(roomRef, {
+                        id: currentRoomId,
+                        isPrivate,
+                        players: [playerData],
+                        currentDrawer: user.uid,
+                        currentWord: WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase(),
+                        hintIndices: [],
+                        lines: [],
+                        messages: [],
+                        createdAt: Date.now()
+                    });
+                } else {
+                    const data = snap.data();
+                    if (!data.players.find(p => p.id === user.uid)) {
+                        await updateDoc(roomRef, { players: arrayUnion(playerData) });
+                    }
                 }
-            }
 
-            isJoined = true;
-            lobbyView.classList.add('hidden');
-            gameView.classList.remove('hidden');
-            document.getElementById('display-room-id').innerText = currentRoomId;
-            resizeCanvas();
-            listenToRoom();
-            
-            // Start hint logic if we are the drawer/host
-            setInterval(checkAndRevealHints, 15000);
-        }
-
-        async function checkAndRevealHints() {
-            if (!roomData || roomData.currentDrawer !== user.uid) return;
-            const word = roomData.currentWord;
-            const revealed = roomData.hintIndices || [];
-            
-            // Don't reveal more than 30% of the word or more than 2 letters
-            const maxHints = Math.max(1, Math.floor(word.length * 0.3));
-            if (revealed.length < maxHints) {
-                const remaining = [];
-                for(let i=0; i<word.length; i++) {
-                    if(!revealed.includes(i)) remaining.push(i);
-                }
-                const newHint = remaining[Math.floor(Math.random() * remaining.length)];
-                
-                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
-                await updateDoc(roomRef, { hintIndices: arrayUnion(newHint) });
+                lobbyView.classList.add('hidden');
+                gameView.classList.remove('hidden');
+                document.getElementById('display-room-id').innerText = currentRoomId;
+                resizeCanvas();
+                listenToRoom();
+            } catch (fErr) {
+                console.error("Firestore Permission Error:", fErr);
+                alert("Room join failed. Check Firebase console for Authentication and Firestore Rules.");
             }
         }
 
         function listenToRoom() {
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
             onSnapshot(roomRef, (snapshot) => {
                 if (!snapshot.exists()) return;
                 roomData = snapshot.data();
                 updateUI();
-                redrawCanvas(roomData.lines);
-            });
+                if (!isDrawing) redrawCanvas(roomData.lines);
+            }, (err) => console.error("Room sync error:", err));
         }
 
         function updateUI() {
-            if (!roomData) return;
             const isDrawer = roomData.currentDrawer === user.uid;
-            
-            // Chat Input State
-            const chatInput = document.getElementById('chat-input');
-            const chatBtn = document.getElementById('chat-submit');
-            if (isDrawer) {
-                chatInput.disabled = true;
-                chatInput.placeholder = "You are drawing! No cheating...";
-                chatInput.value = "";
-                chatBtn.disabled = true;
-                chatBtn.classList.add('opacity-50');
-            } else {
-                chatInput.disabled = false;
-                chatInput.placeholder = "Type your guess...";
-                chatBtn.disabled = false;
-                chatBtn.classList.remove('opacity-50');
-            }
-
-            // Player List
             const list = document.getElementById('player-list');
             list.innerHTML = '';
             [...roomData.players].sort((a,b) => b.score - a.score).forEach(p => {
@@ -324,7 +308,7 @@
                 item.className = `flex items-center justify-between p-2.5 rounded-xl ${p.id === user.uid ? 'bg-blue-50' : ''}`;
                 item.innerHTML = `
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xl" style="background:${p.avatarColor}">${p.avatarIcon}</div>
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xl shadow-sm" style="background:${p.avatarColor}">${p.avatarIcon}</div>
                         <div>
                             <p class="text-sm font-bold">${p.name}</p>
                             <p class="text-[10px] text-blue-600 font-black">${p.score} PTS</p>
@@ -335,46 +319,38 @@
                 list.appendChild(item);
             });
 
-            // Tools Visibility
-            document.getElementById('drawer-tools').style.display = isDrawer ? 'flex' : 'none';
-            document.getElementById('tool-bar').style.display = isDrawer ? 'flex' : 'none';
-            document.getElementById('drawer-overlay').style.display = isDrawer ? 'none' : 'flex';
-            
-            const drawerObj = roomData.players.find(p => p.id === roomData.currentDrawer);
-            document.getElementById('drawer-name-notif').innerText = drawerObj?.name || 'Someone';
+            const chatInput = document.getElementById('chat-input');
+            const chatBtn = document.getElementById('chat-submit');
+            if (isDrawer) {
+                chatInput.disabled = true;
+                chatInput.placeholder = "Drawing...";
+                document.getElementById('drawer-tools').classList.replace('hidden', 'flex');
+                document.getElementById('tool-bar').classList.replace('hidden', 'flex');
+                document.getElementById('drawer-overlay').classList.add('hidden');
+            } else {
+                chatInput.disabled = false;
+                chatInput.placeholder = "Type your guess...";
+                document.getElementById('drawer-tools').classList.replace('flex', 'hidden');
+                document.getElementById('tool-bar').classList.replace('flex', 'hidden');
+                document.getElementById('drawer-overlay').classList.remove('hidden');
+                const dr = roomData.players.find(p => p.id === roomData.currentDrawer);
+                document.getElementById('drawer-name-notif').innerText = dr ? dr.name : 'Someone';
+            }
 
-            // Word Display with Hints
             const word = roomData.currentWord || "";
             const hints = roomData.hintIndices || [];
-            let display = "";
-            
-            if (isDrawer) {
-                display = word.toUpperCase().split('').join(' ');
-            } else {
-                display = word.split('').map((char, idx) => {
-                    return hints.includes(idx) ? char.toUpperCase() : '_';
-                }).join(' ');
-            }
-            document.getElementById('word-display').innerText = display;
+            document.getElementById('word-display').innerText = isDrawer ? word.toUpperCase().split('').join(' ') : word.split('').map((c, i) => hints.includes(i) ? c.toUpperCase() : '_').join(' ');
 
-            // Chat Messages
             chatMessages.innerHTML = '';
-            roomData.messages.slice(-30).forEach(m => {
+            roomData.messages.slice(-40).forEach(m => {
                 const div = document.createElement('div');
-                div.className = `text-sm flex gap-3 animate-in fade-in slide-in-from-bottom-1 ${m.system ? 'bg-green-100 p-2 rounded-lg' : ''}`;
-                div.innerHTML = `
-                    <span class="shrink-0">${m.avatarIcon || '👤'}</span>
-                    <div class="min-w-0 flex-1">
-                        <p class="font-bold text-[9px] text-slate-400 uppercase leading-none mb-1">${m.sender}</p>
-                        <p class="text-slate-700 break-words">${m.text}</p>
-                    </div>
-                `;
+                div.className = `text-sm flex gap-3 animate-in ${m.system ? 'bg-green-100 p-2 rounded-lg' : ''}`;
+                div.innerHTML = `<span class="shrink-0">${m.avatarIcon || '👤'}</span><div class="min-w-0 flex-1"><p class="font-bold text-[9px] text-slate-400 uppercase">${m.sender}</p><p class="text-slate-700 break-words">${m.text}</p></div>`;
                 chatMessages.appendChild(div);
             });
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Drawing Logic
         function resizeCanvas() {
             const rect = canvas.parentElement.getBoundingClientRect();
             canvas.width = rect.width;
@@ -384,18 +360,13 @@
 
         function redrawCanvas(lines) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
             lines.forEach(line => {
-                if (!line.points.length) return;
-                ctx.beginPath();
-                ctx.strokeStyle = line.color;
-                ctx.lineWidth = line.size;
+                if (!line.points || line.points.length < 1) return;
+                ctx.beginPath(); ctx.strokeStyle = line.color; ctx.lineWidth = line.size;
                 line.points.forEach((p, i) => {
-                    const x = p.x * canvas.width;
-                    const y = p.y * canvas.height;
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
+                    const x = p.x * canvas.width; const y = p.y * canvas.height;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 });
                 ctx.stroke();
             });
@@ -411,28 +382,22 @@
         function startDrawing(e) {
             if (!roomData || roomData.currentDrawer !== user.uid) return;
             isDrawing = true;
-            localLines = [...roomData.lines, {
-                color: isErasing ? '#ffffff' : currentColor,
-                size: brushSize,
-                points: [getPos(e)]
-            }];
+            localLines = [...roomData.lines, { color: isErasing ? '#ffffff' : currentColor, size: brushSize, points: [getPos(e)] }];
         }
 
         function draw(e) {
             if (!isDrawing) return;
-            const pos = getPos(e);
-            localLines[localLines.length - 1].points.push(pos);
+            localLines[localLines.length - 1].points.push(getPos(e));
             redrawCanvas(localLines);
         }
 
         async function stopDrawing() {
             if (!isDrawing) return;
             isDrawing = false;
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
             await updateDoc(roomRef, { lines: localLines });
         }
 
-        // Events
         canvas.addEventListener('mousedown', startDrawing);
         canvas.addEventListener('mousemove', draw);
         window.addEventListener('mouseup', stopDrawing);
@@ -445,31 +410,26 @@
             document.getElementById('brush-size-label').innerText = brushSize + 'px';
         };
 
-        document.getElementById('eraser-btn').onclick = () => isErasing = !isErasing;
+        document.getElementById('eraser-btn').onclick = () => {
+            isErasing = !isErasing;
+            document.getElementById('eraser-btn').style.borderColor = isErasing ? '#2563eb' : 'transparent';
+        };
+
         document.getElementById('clear-btn').onclick = async () => {
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
-            await updateDoc(roomRef, { lines: [] });
+            if (roomData.currentDrawer !== user.uid) return;
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId), { lines: [] });
         };
 
         document.getElementById('chat-form').onsubmit = async (e) => {
             e.preventDefault();
-            if (roomData?.currentDrawer === user.uid) return; // Guard
-            
             const input = document.getElementById('chat-input');
             const val = input.value.trim();
-            if (!val || !roomData) return;
+            if (!val || !roomData || roomData.currentDrawer === user.uid) return;
 
             const isCorrect = val.toLowerCase() === roomData.currentWord.toLowerCase();
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'game_rooms', currentRoomId);
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
             
-            const msg = {
-                sender: document.getElementById('player-name').value || 'Anonymous',
-                text: isCorrect ? 'guessed the word!' : val,
-                system: isCorrect,
-                avatarIcon: selectedAvatarIcon,
-                timestamp: Date.now()
-            };
-
+            const msg = { sender: document.getElementById('player-name').value || 'Guest', text: isCorrect ? 'GUESSED THE WORD!' : val, system: isCorrect, avatarIcon: selectedAvatarIcon, timestamp: Date.now() };
             let updates = { messages: arrayUnion(msg) };
 
             if (isCorrect) {
@@ -477,39 +437,26 @@
                 updates.players = roomData.players.map(p => p.id === user.uid ? {...p, score: p.score + 10} : p);
                 updates.currentDrawer = roomData.players[nextIdx].id;
                 updates.currentWord = WORDS[Math.floor(Math.random() * WORDS.length)].toLowerCase();
-                updates.lines = [];
-                updates.hintIndices = []; // Reset hints for next word
+                updates.lines = []; updates.hintIndices = [];
             }
-
             await updateDoc(roomRef, updates);
             input.value = '';
         };
 
         document.getElementById('quick-play').onclick = async () => {
-            const col = collection(db, 'artifacts', appId, 'public', 'data', 'game_rooms');
-            const snap = await getDocs(query(col));
+            const roomsCol = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
+            const snap = await getDocs(query(roomsCol, limit(1)));
             let target = null;
-            snap.forEach(d => { if(!d.data().isPrivate && d.data().players.length < 8) target = d.id; });
+            snap.forEach(d => { if(!d.data().isPrivate) target = d.id; });
             joinRoom(target || 'PUB-' + Math.random().toString(36).substring(2,7).toUpperCase(), false);
         };
 
         document.getElementById('create-private').onclick = () => {
-            const code = document.getElementById('room-code-input').value || Math.random().toString(36).substring(2,8).toUpperCase();
-            joinRoom(code, true);
-        };
-
-        document.getElementById('copy-code-btn').onclick = () => {
-            navigator.clipboard.writeText(currentRoomId);
-            document.getElementById('copy-code-btn').innerText = '✅';
-            setTimeout(() => document.getElementById('copy-code-btn').innerText = '📋', 2000);
+            joinRoom(document.getElementById('room-code-input').value || Math.random().toString(36).substring(2,8).toUpperCase(), true);
         };
 
         document.getElementById('exit-game').onclick = () => location.reload();
-
-        // Start
-        initLobbyUI();
-        initAuth();
-        window.addEventListener('resize', resizeCanvas);
+        initLobbyUI(); initAuth(); window.addEventListener('resize', resizeCanvas);
     </script>
 </body>
 </html>
